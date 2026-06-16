@@ -1,0 +1,177 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Shopify Session ─────────────────────────────────────────────────────────
+// DO NOT MODIFY — Required by @shopify/shopify-app-react-router
+// Stores OAuth access tokens for each installed store
+
+model Session {
+  id                   String    @id
+  shop                 String
+  state                String
+  isOnline             Boolean   @default(false)
+  scope                String?
+  expires              DateTime?
+  accessToken          String
+  userId               BigInt?
+  firstName            String?
+  lastName             String?
+  email                String?
+  accountOwner         Boolean   @default(false)
+  locale               String?
+  collaborator         Boolean?  @default(false)
+  emailVerified        Boolean?  @default(false)
+  refreshToken         String?
+  refreshTokenExpires  DateTime?
+}
+
+// ─── Shop ─────────────────────────────────────────────────────────────────────
+// One row per merchant who installs the app.
+// This is the root of all data — every order and image traces back here.
+// myshopifyDomain is the unique identifier (e.g. "my-store.myshopify.com")
+
+model Shop {
+  id               String   @id @default(cuid())
+  myshopifyDomain  String   @unique
+  name             String?
+  email            String?
+  plan             String?
+  installedAt      DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  orders           Order[]
+  settings         ShopSettings?
+
+  @@index([myshopifyDomain])
+}
+
+// ─── Order ───────────────────────────────────────────────────────────────────
+// Local copy of Shopify order data synced via webhooks.
+// shopifyOrderId is the GID: "gid://shopify/Order/123456"
+// orderName is the human-readable "#1001"
+// Having local copies means we can query/filter without hitting Shopify API
+
+model Order {
+  id                    String   @id @default(cuid())
+  shopifyOrderId        String
+  orderName             String
+  financialStatus       String?
+  fulfillmentStatus     String?
+  totalPrice            String?
+  currency              String?
+  customerName          String?
+  customerEmail         String?
+  shopifyCreatedAt      DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  // Relations
+  shop                  Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopId                String
+  imageUploads          ImageUpload[]
+
+  // A shop cannot have two orders with the same Shopify ID
+  @@unique([shopId, shopifyOrderId])
+  @@index([shopId])
+  @@index([shopifyOrderId])
+}
+
+// ─── ImageUpload ─────────────────────────────────────────────────────────────
+// Core model. Each image a customer uploads = one row.
+// imageUrl is where the image is stored (Phase 4: cloud storage)
+// status drives the entire review workflow
+// lineItemId links the image to a specific product in the order
+
+model ImageUpload {
+  id              String        @id @default(cuid())
+  imageUrl        String
+  originalName    String?
+  mimeType        String?
+  fileSize        Int?
+  width           Int?
+  height          Int?
+  status          ReviewStatus  @default(PENDING)
+  lineItemId      String?
+  notes           String?
+  uploadedAt      DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relations
+  order           Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId         String
+  reviews         ImageReview[]
+
+  @@index([orderId])
+  @@index([status])
+}
+
+// ─── ImageReview ─────────────────────────────────────────────────────────────
+// Audit trail for every merchant action on an image.
+// Tracks who did what and when — essential for accountability.
+// action: APPROVED, REJECTED, NOTE_ADDED, STATUS_CHANGED
+
+model ImageReview {
+  id            String       @id @default(cuid())
+  action        ReviewAction
+  note          String?
+  merchantId    String?
+  createdAt     DateTime     @default(now())
+
+  // Relations
+  imageUpload   ImageUpload  @relation(fields: [imageUploadId], references: [id], onDelete: Cascade)
+  imageUploadId String
+
+  @@index([imageUploadId])
+}
+
+// ─── ShopSettings ────────────────────────────────────────────────────────────
+// Per-merchant configuration. One row per shop.
+// Stores upload limits, allowed types, notification preferences.
+// Phase 6 will build the Settings UI that writes to this model.
+
+model ShopSettings {
+  id                  String   @id @default(cuid())
+  maxFileSizeMb       Int      @default(10)
+  allowedFileTypes    String   @default("jpg,jpeg,png,webp")
+  notifyOnUpload      Boolean  @default(true)
+  notifyOnReview      Boolean  @default(false)
+  storageProvider     String   @default("local")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  // Relations — one-to-one with Shop
+  shop                Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopId              String   @unique
+
+  @@index([shopId])
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+// Note: SQLite does not support native enums.
+// Prisma handles this by storing the string value in the database.
+// When we switch to PostgreSQL in production, these become real DB enums.
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  NEEDS_REVISION
+}
+
+enum ReviewAction {
+  APPROVED
+  REJECTED
+  NOTE_ADDED
+  STATUS_CHANGED
+  REVISION_REQUESTED
+}
