@@ -43,15 +43,32 @@
     <label class="plb-label">2. Grid Size</label>
     <div class="plb-option-group" id="plb-grid-size-group">
       <button type="button" class="plb-grid-btn" data-value="1x1">
-        <span class="plb-grid-preview plb-grid-1x1"></span>
+        <span class="plb-grid-preview plb-grid-1x1">
+          <span class="plb-grid-cell"></span>
+        </span>
         <span class="plb-grid-name">1×1</span>
       </button>
       <button type="button" class="plb-grid-btn" data-value="2x2">
-        <span class="plb-grid-preview plb-grid-2x2"></span>
+        <span class="plb-grid-preview plb-grid-2x2">
+          <span class="plb-grid-cell"></span>
+          <span class="plb-grid-cell"></span>
+          <span class="plb-grid-cell"></span>
+          <span class="plb-grid-cell"></span>
+        </span>
         <span class="plb-grid-name">2×2</span>
       </button>
       <button type="button" class="plb-grid-btn" data-value="3x3">
-        <span class="plb-grid-preview plb-grid-3x3"></span>
+        <span class="plb-grid-preview plb-grid-3x3">
+          <span class="plb-grid-cell"></span>
+          <span class="plb-grid-cell"></span>
+          <span class="plb-grid-cell"></span>
+          <span class="plb-grid-cell"></span>
+          <span class="plb-grid-cell"></span>
+          <span class="plb-grid-cell"></span>
+          <span class="plb-grid-cell"></span>
+          <span class="plb-grid-cell"></span>
+          <span class="plb-grid-cell"></span>
+        </span>
         <span class="plb-grid-name">3×3</span>
       </button>
     </div>
@@ -106,11 +123,26 @@
     </div>
 
     <div class="plb-crop-ratio-group" id="plb-crop-ratio-group">
-      <button type="button" class="plb-ratio-btn plb-selected" data-ratio="free">Free</button>
-      <button type="button" class="plb-ratio-btn" data-ratio="1">1:1</button>
-      <button type="button" class="plb-ratio-btn" data-ratio="1.333">4:3</button>
-      <button type="button" class="plb-ratio-btn" data-ratio="0.75">3:4</button>
-      <button type="button" class="plb-ratio-btn" data-ratio="1.778">16:9</button>
+      <button type="button" class="plb-ratio-btn plb-selected" data-ratio="free">
+        <span class="plb-ratio-label">Free</span>
+        <span class="plb-ratio-dimension">Custom</span>
+      </button>
+      <button type="button" class="plb-ratio-btn" data-ratio="1">
+        <span class="plb-ratio-label">1:1</span>
+        <span class="plb-ratio-dimension">600x600</span>
+      </button>
+      <button type="button" class="plb-ratio-btn" data-ratio="1.333">
+        <span class="plb-ratio-label">4:3</span>
+        <span class="plb-ratio-dimension">800x600</span>
+      </button>
+      <button type="button" class="plb-ratio-btn" data-ratio="0.75">
+        <span class="plb-ratio-label">3:4</span>
+        <span class="plb-ratio-dimension">600x800</span>
+      </button>
+      <button type="button" class="plb-ratio-btn" data-ratio="1.778">
+        <span class="plb-ratio-label">16:9</span>
+        <span class="plb-ratio-dimension">800x450</span>
+      </button>
     </div>
 
     <div class="plb-crop-image-wrapper">

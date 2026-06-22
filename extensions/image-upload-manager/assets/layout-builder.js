@@ -356,12 +356,17 @@
 
   function renderRealPreview(previewUrl) {
     previewBox.innerHTML = "";
+
+    const frame = document.createElement("div");
+    frame.className = "plb-preview-frame";
+
     const img = document.createElement("img");
     img.src = apiUrl(previewUrl); // prefix with appUrl, same as API calls
     img.alt = "Your photo layout preview";
-    img.style.maxWidth = "100%";
-    img.style.borderRadius = "6px";
-    previewBox.appendChild(img);
+    img.className = "plb-preview-image";
+
+    frame.appendChild(img);
+    previewBox.appendChild(frame);
   }
 
   // ─── Add to Cart ─────────────────────────────────────────────────────────

@@ -1,14 +1,23 @@
 /* extensions/image-upload-manager/assets/layout-builder.css */
 
 .plb-container {
-  max-width: 100%;
-  margin: 24px 0;
+  width: 100%;
+  max-width: 560px; /* fixed ceiling — prevents jumping wider on desktop */
+  margin: 24px auto; /* center it instead of stretching full theme column */
   padding: 20px;
   border: 1px solid #e1e1e1;
   border-radius: 8px;
   background: #fafafa;
   font-family: inherit;
   box-sizing: border-box;
+}
+
+/* On small screens, let it use the full available width as before */
+@media (max-width: 600px) {
+  .plb-container {
+    max-width: 100%;
+    margin: 24px 0;
+  }
 }
 
 .plb-header {
@@ -133,34 +142,26 @@
   gap: 2px;
 }
 
+.plb-grid-cell {
+  background: #c1c1c1;
+  border-radius: 2px;
+  display: block;
+}
+
 .plb-grid-1x1 {
   grid-template-columns: 1fr;
   grid-template-rows: 1fr;
-}
-.plb-grid-1x1::before {
-  content: "";
-  background: #c1c1c1;
-  border-radius: 2px;
 }
 
 .plb-grid-2x2 {
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
 }
-.plb-grid-2x2::before,
-.plb-grid-2x2::after {
-  content: "";
-  background: #c1c1c1;
-  border-radius: 2px;
-}
 
 .plb-grid-3x3 {
   grid-template-columns: 1fr 1fr 1fr;
   grid-template-rows: 1fr 1fr 1fr;
-  background: #c1c1c1;
-  border-radius: 2px;
 }
-
 .plb-grid-name {
   font-size: 13px;
   font-weight: 600;
@@ -249,25 +250,51 @@
   margin-top: 8px;
   min-height: 16px;
 }
-
-/* Preview */
 .plb-preview-box {
   border: 1px solid #e1e1e1;
   border-radius: 8px;
   background: #ffffff;
-  min-height: 200px;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 16px;
+  box-sizing: border-box;
 }
 
-.plb-preview-box img {
-  max-width: 100%;
+/* Fixed SQUARE frame for the preview — independent of the actual
+   cropped image's aspect ratio. The image fits INSIDE this square
+   without stretching it, same behavior as the original placeholder. */
+.plb-preview-frame {
   width: 100%;
-  height: auto;
-  display: block;
+  max-width: 240px;
+  aspect-ratio: 1 / 1;
   border-radius: 6px;
+  overflow: hidden;
+  background: #f4f4f4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+}
+
+.plb-preview-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* fills the square, crops overflow, never stretches */
+  border-radius: 6px;
+}
+
+@media (min-width: 768px) {
+  .plb-preview-frame {
+    max-width: 180px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .plb-preview-frame {
+    max-width: 140px;
+  }
 }
 
 .plb-preview-placeholder {
@@ -406,17 +433,38 @@
 }
 
 .plb-ratio-btn {
-  padding: 6px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 14px;
   border: 1px solid #d1d1d1;
-  border-radius: 16px;
+  border-radius: 10px;
   background: #ffffff;
-  font-size: 12px;
-  font-weight: 600;
-  color: #4a4a4a;
   cursor: pointer;
   transition:
     background 0.15s,
     border-color 0.15s;
+}
+
+.plb-ratio-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #4a4a4a;
+}
+
+.plb-ratio-dimension {
+  font-size: 10px;
+  font-weight: 400;
+  color: #9a9a9a;
+}
+
+.plb-ratio-btn.plb-selected .plb-ratio-label {
+  color: #ffffff;
+}
+
+.plb-ratio-btn.plb-selected .plb-ratio-dimension {
+  color: #cfcfcf;
 }
 
 .plb-ratio-btn:hover {
