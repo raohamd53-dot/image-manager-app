@@ -4,6 +4,7 @@ import { useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { upsertShop, getDashboardStats } from "../lib/db.orders.server";
+import { getCompositionStats } from "../lib/db.compositions.server";
 import { withErrorHandling } from "../lib/errors.server";
 
 export const loader = async ({ request }) => {
@@ -37,8 +38,9 @@ export const loader = async ({ request }) => {
       });
 
       const stats = await getDashboardStats(shop.id);
+      const compositionStats = await getCompositionStats(shop.id);
 
-      return { shop: shopData, stats };
+      return { shop: shopData, stats, compositionStats };
     },
     // Fallback if anything fails
     {
@@ -54,12 +56,13 @@ export const loader = async ({ request }) => {
         approved:         0,
         rejected:         0,
       },
+      compositionStats: { totalCompositions: 0, splitGridCount: 0, collageCount: 0, linkedToOrders: 0, pendingInCart: 0 },
     }
   );
 };
 
 export default function Dashboard() {
-  const { shop, stats, loaderError } = useLoaderData();
+  const { shop, stats, compositionStats, loaderError } = useLoaderData();
 
   const statCards = [
     { label: "Total Orders",       value: stats.totalOrders,      tone: "info" },
@@ -67,6 +70,14 @@ export default function Dashboard() {
     { label: "Pending Review",     value: stats.pendingReview,    tone: "warning" },
     { label: "Approved",           value: stats.approved,         tone: "success" },
     { label: "Rejected",           value: stats.rejected,         tone: "critical" },
+  ];
+
+  const compositionCards = [
+    { label: "Total Compositions", value: compositionStats.totalCompositions, tone: "info" },
+    { label: "Split Grid",         value: compositionStats.splitGridCount,    tone: "info" },
+    { label: "Photo Collage",      value: compositionStats.collageCount,      tone: "info" },
+    { label: "Linked to Orders",   value: compositionStats.linkedToOrders,    tone: "success" },
+    { label: "Pending in Cart",    value: compositionStats.pendingInCart,     tone: "warning" },
   ];
 
   return (
@@ -124,7 +135,26 @@ export default function Dashboard() {
           ))}
         </s-columns>
       </s-section>
-
+      <s-section heading="Photo Layout Compositions">
+        <s-columns columns="5" gap="400">
+          {compositionCards.map((card) => (
+            <s-box
+              key={card.label}
+              padding="400"
+              background="surface"
+              border-radius="200"
+              border="base"
+            >
+              <s-stack gap="200" block-align="center">
+                <s-text tone="subdued" font-size="body-sm">{card.label}</s-text>
+                <s-text font-size="heading-xl" font-weight="bold">
+                  {card.value}
+                </s-text>
+              </s-stack>
+            </s-box>
+          ))}
+        </s-columns>
+      </s-section>
       <s-section heading="Setup Status">
         <s-banner tone="success">
           <s-paragraph>

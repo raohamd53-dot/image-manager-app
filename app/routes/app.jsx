@@ -15,11 +15,12 @@ export default function App() {
   const location = useLocation();
 
   const navItems = [
-    { label: "Dashboard", href: "/app" },
-    { label: "Orders",    href: "/app/orders" },
-    { label: "Images",    href: "/app/images" },
-    { label: "Settings",  href: "/app/settings" },
-  ];
+  { label: "Dashboard",     href: "/app" },
+  { label: "Orders",        href: "/app/orders" },
+  { label: "Compositions",  href: "/app/compositions" },
+  { label: "Images",        href: "/app/images" },
+  { label: "Settings",      href: "/app/settings" },
+];
 
   return (
     <AppProvider embedded apiKey={apiKey}>

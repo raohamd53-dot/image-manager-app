@@ -66,7 +66,49 @@ export async function processOrderWebhook({ shop, orderData }) {
   });
 
   console.log(`Order synced: ${order.orderName} for shop: ${shop}`);
+
+  // ─── Link any compositions referenced in line item properties ──────────
+  await linkCompositionsFromLineItems({ order, orderData });
+
   return order;
+}
+
+/**
+ * Scans every line item's properties for "_composition_id" and links
+ * the matching Composition record to this order.
+ * This is how customer-built layouts get connected to real Shopify orders.
+ */
+async function linkCompositionsFromLineItems({ order, orderData }) {
+  const lineItems = orderData.line_items || [];
+
+  for (const item of lineItems) {
+    const properties = item.properties;
+    if (!properties) continue;
+
+    // Shopify sends properties as an array of {name, value} OR as an object
+    // depending on API version — handle both shapes defensively
+    let compositionId = null;
+
+    if (Array.isArray(properties)) {
+      const match = properties.find((p) => p.name === "_composition_id");
+      compositionId = match?.value || null;
+    } else if (typeof properties === "object") {
+      compositionId = properties["_composition_id"] || null;
+    }
+
+    if (compositionId) {
+      try {
+        await db.composition.update({
+          where: { id: compositionId },
+          data:  { orderId: order.id },
+        });
+        console.log(`Linked composition ${compositionId} to order ${order.orderName}`);
+      } catch (error) {
+        // Composition might not exist (e.g. test webhook data) — log and continue
+        console.log(`Could not link composition ${compositionId}: ${error.message}`);
+      }
+    }
+  }
 }
 
 /**

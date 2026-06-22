@@ -5,6 +5,11 @@ application_url = "https://example.com"
 embedded = true
 name = "image-upload-manager"
 
+[app_proxy]
+url = "https://placeholder.trycloudflare.com"
+subpath = "photo-layout"
+prefix = "apps"
+
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
 scopes = "write_products,read_orders,read_customers,write_metaobjects,write_metaobject_definitions"
@@ -51,6 +56,7 @@ api_version = "2025-10"
   [[webhooks.subscriptions]]
   topics = ["app/uninstalled"]
   uri = "/webhooks/app/uninstalled"
+
 
 
 [auth]

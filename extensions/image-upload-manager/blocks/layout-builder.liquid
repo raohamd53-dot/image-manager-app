@@ -1,0 +1,151 @@
+{% comment %}
+  blocks/layout-builder.liquid
+  Renders below the product image.
+  Customer selects layout type, grid size, uploads images, sees live preview.
+{% endcomment %}
+
+{{ 'cropper.min.css' | asset_url | stylesheet_tag }}
+{{ 'layout-builder.css' | asset_url | stylesheet_tag }}
+
+<div
+  id="photo-layout-builder"
+  class="plb-container"
+  data-shop="{{ shop.permanent_domain }}"
+  data-product-id="{{ product.id }}"
+  data-variant-id="{{ product.selected_or_first_available_variant.id }}"
+  data-app-url="{{ block.settings.app_backend_url }}"
+>
+
+  <div class="plb-header">
+    <h3 class="plb-title">{{ block.settings.widget_title | default: 'Create Your Photo Layout' }}</h3>
+    <p class="plb-subtitle">Upload your photos and we'll create a custom layout for your print.</p>
+  </div>
+
+  <!-- Step 1: Layout Type -->
+  <div class="plb-step" data-step="layout-type">
+    <label class="plb-label">1. Layout Type</label>
+    <div class="plb-option-group" id="plb-layout-type-group">
+      <button type="button" class="plb-option-btn" data-value="split">
+        <span class="plb-option-icon">🖼️</span>
+        <span class="plb-option-name">Split Photo Grid</span>
+        <span class="plb-option-desc">One image, divided into a grid</span>
+      </button>
+      <button type="button" class="plb-option-btn" data-value="collage">
+        <span class="plb-option-icon">🧩</span>
+        <span class="plb-option-name">Photo Collage</span>
+        <span class="plb-option-desc">Multiple images, one per cell</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Step 2: Grid Size -->
+  <div class="plb-step plb-step-hidden" data-step="grid-size">
+    <label class="plb-label">2. Grid Size</label>
+    <div class="plb-option-group" id="plb-grid-size-group">
+      <button type="button" class="plb-grid-btn" data-value="1x1">
+        <span class="plb-grid-preview plb-grid-1x1"></span>
+        <span class="plb-grid-name">1×1</span>
+      </button>
+      <button type="button" class="plb-grid-btn" data-value="2x2">
+        <span class="plb-grid-preview plb-grid-2x2"></span>
+        <span class="plb-grid-name">2×2</span>
+      </button>
+      <button type="button" class="plb-grid-btn" data-value="3x3">
+        <span class="plb-grid-preview plb-grid-3x3"></span>
+        <span class="plb-grid-name">3×3</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Step 3: Upload -->
+  <div class="plb-step plb-step-hidden" data-step="upload">
+    <label class="plb-label" id="plb-upload-label">3. Upload Images</label>
+    <p class="plb-upload-hint" id="plb-upload-hint"></p>
+
+    <div class="plb-dropzone" id="plb-dropzone">
+      <input type="file" id="plb-file-input" accept="image/jpeg,image/png,image/webp" multiple hidden />
+      <div class="plb-dropzone-content">
+        <span class="plb-dropzone-icon">📤</span>
+        <span class="plb-dropzone-text">Click or drag images here</span>
+      </div>
+    </div>
+
+    <div class="plb-thumbnails" id="plb-thumbnails"></div>
+    <p class="plb-validation-message" id="plb-validation-message"></p>
+  </div>
+
+  <!-- Step 4: Preview -->
+  <div class="plb-step plb-step-hidden" data-step="preview">
+    <label class="plb-label">4. Preview</label>
+    <div class="plb-preview-box" id="plb-preview-box">
+      <p class="plb-preview-placeholder">Your preview will appear here</p>
+    </div>
+  </div>
+
+  <!-- Status / Errors -->
+  <div class="plb-status" id="plb-status"></div>
+
+  <!-- Add to Cart -->
+  <div class="plb-actions">
+    <button type="button" class="plb-add-to-cart-btn" id="plb-add-to-cart-btn" disabled>
+      Add to Cart
+    </button>
+  </div>
+
+</div>
+
+
+
+<!-- Crop Editor Modal -->
+<div id="plb-crop-modal" class="plb-crop-modal plb-crop-modal-hidden">
+  <div class="plb-crop-modal-content">
+
+    <div class="plb-crop-header">
+      <h4 class="plb-crop-title">Adjust Your Photo</h4>
+      <button type="button" class="plb-crop-close" id="plb-crop-close">✕</button>
+    </div>
+
+    <div class="plb-crop-ratio-group" id="plb-crop-ratio-group">
+      <button type="button" class="plb-ratio-btn plb-selected" data-ratio="free">Free</button>
+      <button type="button" class="plb-ratio-btn" data-ratio="1">1:1</button>
+      <button type="button" class="plb-ratio-btn" data-ratio="1.333">4:3</button>
+      <button type="button" class="plb-ratio-btn" data-ratio="0.75">3:4</button>
+      <button type="button" class="plb-ratio-btn" data-ratio="1.778">16:9</button>
+    </div>
+
+    <div class="plb-crop-image-wrapper">
+      <img id="plb-crop-image" src="" alt="Crop preview" />
+    </div>
+
+    <div class="plb-crop-actions">
+      <button type="button" class="plb-crop-skip-btn" id="plb-crop-skip-btn">Use Original</button>
+      <button type="button" class="plb-crop-apply-btn" id="plb-crop-apply-btn">Apply Crop</button>
+    </div>
+
+  </div>
+</div>
+
+{{ 'cropper.min.js' | asset_url | script_tag }}
+{{ 'layout-builder.js' | asset_url | script_tag }}
+
+
+
+{% schema %}
+{
+  "name": "Photo Layout Builder",
+  "target": "section",
+  "settings": [
+    {
+      "type": "text",
+      "id": "widget_title",
+      "label": "Widget Title",
+      "default": "Create Your Photo Layout"
+    },
+   {
+  "type": "url",
+  "id": "app_backend_url",
+  "label": "App Backend URL (set automatically, do not edit)"
+}
+  ]
+}
+{% endschema %}
