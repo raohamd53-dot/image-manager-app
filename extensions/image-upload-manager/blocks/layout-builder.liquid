@@ -122,7 +122,13 @@
       <button type="button" class="plb-crop-close" id="plb-crop-close">✕</button>
     </div>
 
-    <div class="plb-crop-ratio-group" id="plb-crop-ratio-group">
+   <div class="plb-crop-tabs" id="plb-crop-tabs">
+      <button type="button" class="plb-crop-tab plb-selected" data-tab="default">Aspect Ratios</button>
+      <button type="button" class="plb-crop-tab" data-tab="presets">Preset Sizes</button>
+    </div>
+
+    <!-- Tab 1: Default Aspect Ratios -->
+    <div class="plb-crop-ratio-group" id="plb-crop-ratio-group" data-tab-panel="default">
       <button type="button" class="plb-ratio-btn plb-selected" data-ratio="free">
         <span class="plb-ratio-label">Free</span>
         <span class="plb-ratio-dimension">Custom</span>
@@ -143,6 +149,45 @@
         <span class="plb-ratio-label">16:9</span>
         <span class="plb-ratio-dimension">800x450</span>
       </button>
+    </div>
+
+    <!-- Tab 2: Custom Preset Sizes -->
+    <div class="plb-crop-preset-group plb-step-hidden" id="plb-crop-preset-group" data-tab-panel="presets">
+
+      <div class="plb-custom-pixel-row">
+        <input type="number" id="plb-custom-width" class="plb-pixel-input" placeholder="Width" min="1" />
+        <span class="plb-pixel-x">×</span>
+        <input type="number" id="plb-custom-height" class="plb-pixel-input" placeholder="Height" min="1" />
+        <button type="button" class="plb-pixel-apply-btn" id="plb-custom-pixel-apply">Apply</button>
+      </div>
+
+      <div class="plb-preset-buttons">
+        <button type="button" class="plb-preset-btn" data-width="2048" data-height="2048">
+          <span class="plb-ratio-label">Shopify Product</span>
+          <span class="plb-ratio-dimension">2048x2048</span>
+        </button>
+        <button type="button" class="plb-preset-btn" data-width="1080" data-height="1080">
+          <span class="plb-ratio-label">Instagram Square</span>
+          <span class="plb-ratio-dimension">1080x1080</span>
+        </button>
+        <button type="button" class="plb-preset-btn" data-width="1080" data-height="1350">
+          <span class="plb-ratio-label">Instagram Portrait</span>
+          <span class="plb-ratio-dimension">1080x1350</span>
+        </button>
+        <button type="button" class="plb-preset-btn" data-width="1200" data-height="628">
+          <span class="plb-ratio-label">FB OG</span>
+          <span class="plb-ratio-dimension">1200x628</span>
+        </button>
+        <button type="button" class="plb-preset-btn" data-width="1080" data-height="1920">
+          <span class="plb-ratio-label">Stories / TikTok</span>
+          <span class="plb-ratio-dimension">1080x1920</span>
+        </button>
+        <button type="button" class="plb-preset-btn" data-width="1500" data-height="500">
+          <span class="plb-ratio-label">Twitter / X Banner</span>
+          <span class="plb-ratio-dimension">1500x500</span>
+        </button>
+      </div>
+
     </div>
 
     <div class="plb-crop-image-wrapper">

@@ -42,7 +42,7 @@
 }
 
 .plb-step-hidden {
-  display: none;
+  display: none !important;
 }
 
 .plb-label {
@@ -424,12 +424,122 @@
   padding: 4px 8px;
 }
 
-.plb-crop-ratio-group {
+.plb-crop-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 14px 18px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.plb-crop-tab {
+  padding: 8px 16px;
+  border: none;
+  background: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: #9a9a9a;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.plb-crop-tab:hover {
+  color: #4a4a4a;
+}
+
+.plb-crop-tab.plb-selected {
+  color: #1a1a1a;
+  border-bottom-color: #1a1a1a;
+}
+
+.plb-crop-ratio-group,
+.plb-crop-preset-group {
   display: flex;
   gap: 8px;
   padding: 14px 18px;
   flex-wrap: wrap;
   border-bottom: 1px solid #f0f0f0;
+}
+
+.plb-crop-preset-group {
+  flex-direction: column;
+  gap: 12px;
+}
+
+.plb-custom-pixel-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.plb-pixel-input {
+  width: 90px;
+  padding: 8px 10px;
+  border: 1px solid #d1d1d1;
+  border-radius: 6px;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.plb-pixel-x {
+  font-size: 13px;
+  color: #9a9a9a;
+}
+
+.plb-pixel-apply-btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: none;
+  background: #1a1a1a;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.plb-pixel-apply-btn:hover {
+  opacity: 0.85;
+}
+
+.plb-preset-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.plb-preset-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 14px;
+  border: 1px solid #d1d1d1;
+  border-radius: 10px;
+  background: #ffffff;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.plb-preset-btn:hover {
+  border-color: #9a9a9a;
+}
+
+.plb-preset-btn.plb-selected {
+  background: #1a1a1a;
+  border-color: #1a1a1a;
+}
+
+.plb-preset-btn.plb-selected .plb-ratio-label {
+  color: #ffffff;
+}
+
+.plb-preset-btn.plb-selected .plb-ratio-dimension {
+  color: #cfcfcf;
 }
 
 .plb-ratio-btn {

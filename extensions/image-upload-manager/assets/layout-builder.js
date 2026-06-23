@@ -226,6 +226,7 @@
       processNextCropInQueue(required);
     });
   }
+
   function renderThumbnails() {
     thumbnails.innerHTML = "";
     state.files.forEach((file, index) => {
@@ -437,23 +438,54 @@
   const cropSkipBtn = document.getElementById("plb-crop-skip-btn");
   const cropApplyBtn = document.getElementById("plb-crop-apply-btn");
 
+  // New: tabs + preset/custom-pixel elements
+  const cropTabsGroup = document.getElementById("plb-crop-tabs");
+  const cropPresetGroup = document.getElementById("plb-crop-preset-group");
+  const customWidthInput = document.getElementById("plb-custom-width");
+  const customHeightInput = document.getElementById("plb-custom-height");
+  const customPixelApplyBtn = document.getElementById("plb-custom-pixel-apply");
+
   let currentCropFile = null;
   let currentCropCallback = null;
+  let targetOutputSize = null; // { width, height } in real px, or null = natural crop resolution
+
+  function switchCropTab(tabName) {
+    cropTabsGroup.querySelectorAll(".plb-crop-tab").forEach((tab) => {
+      tab.classList.toggle("plb-selected", tab.dataset.tab === tabName);
+    });
+    cropRatioGroup.classList.toggle("plb-step-hidden", tabName !== "default");
+    cropPresetGroup.classList.toggle("plb-step-hidden", tabName !== "presets");
+  }
+
+  cropTabsGroup.addEventListener("click", (e) => {
+    const tabBtn = e.target.closest(".plb-crop-tab");
+    if (!tabBtn) return;
+    switchCropTab(tabBtn.dataset.tab);
+  });
 
   function openCropModal(file, onComplete) {
     currentCropFile = file;
     currentCropCallback = onComplete;
+    targetOutputSize = null; // reset any previously chosen exact output size
 
     const objectUrl = URL.createObjectURL(file);
     cropImage.src = objectUrl;
 
     cropModal.classList.remove("plb-crop-modal-hidden");
 
-    // Reset ratio selector to "Free" each time the modal opens
+    // Always reopen on the "default" tab, with Free selected
+    switchCropTab("default");
+
     cropRatioGroup.querySelectorAll(".plb-ratio-btn").forEach((b) =>
       b.classList.remove("plb-selected")
     );
     cropRatioGroup.querySelector('[data-ratio="free"]').classList.add("plb-selected");
+
+    cropPresetGroup.querySelectorAll(".plb-preset-btn").forEach((b) =>
+      b.classList.remove("plb-selected")
+    );
+    customWidthInput.value = "";
+    customHeightInput.value = "";
 
     // Cropper.js must initialize AFTER the image has loaded into the DOM
     cropImage.onload = () => {
@@ -487,6 +519,8 @@
     finishCrop(currentCropFile);
   });
 
+  // ─── Tab 1: Default Aspect Ratios ───────────────────────────────────────
+
   cropRatioGroup.addEventListener("click", (e) => {
     const btn = e.target.closest(".plb-ratio-btn");
     if (!btn || !cropperInstance) return;
@@ -496,9 +530,62 @@
     );
     btn.classList.add("plb-selected");
 
+    // Switching back to a default ratio clears any fixed pixel output target —
+    // crop will export at its natural cropped resolution again.
+    targetOutputSize = null;
+    cropPresetGroup.querySelectorAll(".plb-preset-btn").forEach((b) =>
+      b.classList.remove("plb-selected")
+    );
+
     const ratioValue = btn.dataset.ratio;
     cropperInstance.setAspectRatio(ratioValue === "free" ? NaN : parseFloat(ratioValue));
   });
+
+  // ─── Tab 2: Preset Sizes ─────────────────────────────────────────────────
+
+  function applyPixelTarget(width, height) {
+    if (!cropperInstance || !width || !height || width <= 0 || height <= 0) return;
+
+    targetOutputSize = { width, height };
+    cropperInstance.setAspectRatio(width / height);
+
+    // Clear "Default" tab selection since a preset/custom size is now active
+    cropRatioGroup.querySelectorAll(".plb-ratio-btn").forEach((b) =>
+      b.classList.remove("plb-selected")
+    );
+  }
+
+  cropPresetGroup.addEventListener("click", (e) => {
+    const btn = e.target.closest(".plb-preset-btn");
+    if (!btn) return;
+
+    cropPresetGroup.querySelectorAll(".plb-preset-btn").forEach((b) =>
+      b.classList.remove("plb-selected")
+    );
+    btn.classList.add("plb-selected");
+
+    const width = parseInt(btn.dataset.width, 10);
+    const height = parseInt(btn.dataset.height, 10);
+    applyPixelTarget(width, height);
+  });
+
+  customPixelApplyBtn.addEventListener("click", () => {
+    const width = parseInt(customWidthInput.value, 10);
+    const height = parseInt(customHeightInput.value, 10);
+
+    if (!width || !height) {
+      setStatus("Enter both width and height in pixels.", "error");
+      return;
+    }
+
+    cropPresetGroup.querySelectorAll(".plb-preset-btn").forEach((b) =>
+      b.classList.remove("plb-selected")
+    );
+    applyPixelTarget(width, height);
+    setStatus("");
+  });
+
+  // ─── Skip / Apply ────────────────────────────────────────────────────────
 
   cropSkipBtn.addEventListener("click", () => {
     finishCrop(currentCropFile);
@@ -510,11 +597,22 @@
       return;
     }
 
-    const canvas = cropperInstance.getCroppedCanvas({
-      maxWidth: 2048,
-      maxHeight: 2048,
-      imageSmoothingQuality: "high",
-    });
+    // If a preset/custom pixel target is active, export at THOSE exact
+    // dimensions. Otherwise fall back to the original natural-resolution
+    // behavior (capped at 2048 for sane file sizes).
+    const exportOptions = targetOutputSize
+      ? {
+        width: targetOutputSize.width,
+        height: targetOutputSize.height,
+        imageSmoothingQuality: "high",
+      }
+      : {
+        maxWidth: 2048,
+        maxHeight: 2048,
+        imageSmoothingQuality: "high",
+      };
+
+    const canvas = cropperInstance.getCroppedCanvas(exportOptions);
 
     canvas.toBlob((blob) => {
       // Wrap the Blob as a File so it behaves identically downstream
@@ -535,6 +633,4 @@
     if (callback) callback(fileToUse);
   }
 
-
 })();
-
