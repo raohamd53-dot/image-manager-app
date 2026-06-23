@@ -178,11 +178,13 @@ export const action = async ({ request }) => {
       uploadIdByCell,
     });
 
-    return Response.json(
+   return Response.json(
       {
         success:       true,
         compositionId: composition.id,
         previewUrl:    result.previewUrl,
+        previewWidth:  result.previewWidth,
+        previewHeight: result.previewHeight,
         cells:         result.cells,
       },
       { headers: corsHeaders() }

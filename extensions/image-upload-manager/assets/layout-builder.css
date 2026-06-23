@@ -267,7 +267,8 @@
 .plb-preview-frame {
   width: 100%;
   max-width: 240px;
-  aspect-ratio: 1 / 1;
+  max-height: 320px; /* ceiling for tall ratios like 9:16 Stories/TikTok */
+  aspect-ratio: 1 / 1; /* fallback only — overridden inline once real dimensions are known */
   border-radius: 6px;
   overflow: hidden;
   background: #f4f4f4;

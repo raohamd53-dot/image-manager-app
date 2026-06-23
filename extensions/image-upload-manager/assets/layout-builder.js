@@ -342,7 +342,7 @@
       state.compositionId = composeData.compositionId;
       state.previewUrl = composeData.previewUrl;
 
-      renderRealPreview(composeData.previewUrl);
+      renderRealPreview(composeData.previewUrl, composeData.previewWidth, composeData.previewHeight);
 
       setStatus("Preview ready!", "success");
       showStep(previewStep);
@@ -355,11 +355,18 @@
     }
   }
 
-  function renderRealPreview(previewUrl) {
+  function renderRealPreview(previewUrl, previewWidth, previewHeight) {
     previewBox.innerHTML = "";
 
     const frame = document.createElement("div");
     frame.className = "plb-preview-frame";
+
+    // Match the frame's aspect ratio to the ACTUAL composed image instead
+    // of forcing a square — prevents tall/wide grids (e.g. Stories 9:16)
+    // from being mostly cropped out by object-fit: cover.
+    if (previewWidth && previewHeight) {
+      frame.style.aspectRatio = `${previewWidth} / ${previewHeight}`;
+    }
 
     const img = document.createElement("img");
     img.src = apiUrl(previewUrl); // prefix with appUrl, same as API calls

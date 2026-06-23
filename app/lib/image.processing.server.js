@@ -52,11 +52,11 @@ export async function splitImageIntoGrid({ sourcePath, gridSize, shop, compositi
   const image = sharp(sourcePath);
   const metadata = await image.metadata();
 
-  const fullWidth  = metadata.width;
+  const fullWidth = metadata.width;
   const fullHeight = metadata.height;
 
   // Use floor to avoid extracting past the image boundary on odd dimensions
-  const cellWidth  = Math.floor(fullWidth / cols);
+  const cellWidth = Math.floor(fullWidth / cols);
   const cellHeight = Math.floor(fullHeight / rows);
 
   const cells = [];
@@ -65,7 +65,7 @@ export async function splitImageIntoGrid({ sourcePath, gridSize, shop, compositi
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
       const left = col * cellWidth;
-      const top  = row * cellHeight;
+      const top = row * cellHeight;
 
       const filename = `tile-${row}-${col}.jpg`;
       const outputPath = join(dir, filename);
@@ -103,18 +103,18 @@ export async function splitImageIntoGrid({ sourcePath, gridSize, shop, compositi
       const layer = compositeLayers[row * cols + col];
       gappedLayers.push({
         input: layer.input,
-        left:  col * (cellWidth + GAP),
-        top:   row * (cellHeight + GAP),
+        left: col * (cellWidth + GAP),
+        top: row * (cellHeight + GAP),
       });
     }
   }
 
-  const previewWidth  = cellWidth  * cols + GAP * (cols - 1);
+  const previewWidth = cellWidth * cols + GAP * (cols - 1);
   const previewHeight = cellHeight * rows + GAP * (rows - 1);
 
   await sharp({
     create: {
-      width:  previewWidth,
+      width: previewWidth,
       height: previewHeight,
       channels: 3,
       background: { r: 255, g: 255, b: 255 },
@@ -126,6 +126,8 @@ export async function splitImageIntoGrid({ sourcePath, gridSize, shop, compositi
 
   return {
     previewUrl: toPublicUrl(shop, compositionId, previewFilename),
+    previewWidth,
+    previewHeight,
     cells,
   };
 }
@@ -184,7 +186,7 @@ export async function composePhotoCollage({ sourcePaths, gridSize, shop, composi
       compositeLayers.push({
         input: outputPath,
         left: col * CELL_SIZE,
-        top:  row * CELL_SIZE,
+        top: row * CELL_SIZE,
       });
     }
   }
@@ -195,12 +197,12 @@ export async function composePhotoCollage({ sourcePaths, gridSize, shop, composi
     const col = index % cols;
     return {
       input: layer.input,
-      left:  col * (CELL_SIZE + GAP),
-      top:   row * (CELL_SIZE + GAP),
+      left: col * (CELL_SIZE + GAP),
+      top: row * (CELL_SIZE + GAP),
     };
   });
 
-  const previewWidth  = CELL_SIZE * cols + GAP * (cols - 1);
+  const previewWidth = CELL_SIZE * cols + GAP * (cols - 1);
   const previewHeight = CELL_SIZE * rows + GAP * (rows - 1);
 
   const previewFilename = "preview.jpg";
@@ -208,7 +210,7 @@ export async function composePhotoCollage({ sourcePaths, gridSize, shop, composi
 
   await sharp({
     create: {
-      width:  previewWidth,
+      width: previewWidth,
       height: previewHeight,
       channels: 3,
       background: { r: 255, g: 255, b: 255 },
@@ -217,9 +219,11 @@ export async function composePhotoCollage({ sourcePaths, gridSize, shop, composi
     .composite(gappedLayers)
     .jpeg({ quality: 90 })
     .toFile(previewPath);
-    
+
   return {
     previewUrl: toPublicUrl(shop, compositionId, previewFilename),
+    previewWidth,
+    previewHeight,
     cells,
   };
 }
@@ -241,10 +245,13 @@ export async function processSingleImage({ sourcePath, shop, compositionId }) {
     .jpeg({ quality: 90 })
     .toFile(outputPath);
 
+  const metadata = await sharp(outputPath).metadata();
   const url = toPublicUrl(shop, compositionId, filename);
 
   return {
     previewUrl: url,
+    previewWidth: metadata.width,
+    previewHeight: metadata.height,
     cells: [{ position: "0-0", imageUrl: url }],
   };
 }
