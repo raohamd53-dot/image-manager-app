@@ -156,10 +156,20 @@ export async function composePhotoCollage({ sourcePaths, gridSize, shop, composi
     );
   }
 
-  // Fixed cell size for collage — keeps output consistent regardless of
-  // source image dimensions. 600px per cell gives good print quality
-  // while keeping file sizes reasonable.
-  const CELL_SIZE = 600;
+  // Bug 4 fix: derive cell dimensions from the actual first uploaded image
+  // rather than hardcoding a 600×600 square. The client-side crop tool
+  // ensures all images already share the same aspect ratio (lockedCropDimensions),
+  // so we only need to read the first image's size and use it as the cell size.
+  // We cap the long edge at 2048px to keep output files reasonable.
+  const MAX_CELL_LONG_EDGE = 2048;
+  const firstMeta = await sharp(sourcePaths[0]).metadata();
+  let cellWidth = firstMeta.width || 600;
+  let cellHeight = firstMeta.height || 600;
+  if (Math.max(cellWidth, cellHeight) > MAX_CELL_LONG_EDGE) {
+    const scale = MAX_CELL_LONG_EDGE / Math.max(cellWidth, cellHeight);
+    cellWidth = Math.round(cellWidth * scale);
+    cellHeight = Math.round(cellHeight * scale);
+  }
 
   const cells = [];
   const compositeLayers = [];
@@ -172,9 +182,10 @@ export async function composePhotoCollage({ sourcePaths, gridSize, shop, composi
       const filename = `cell-${row}-${col}.jpg`;
       const outputPath = join(dir, filename);
 
-      // Resize to exactly fill the cell, cropping any excess (cover fit)
+      // Resize each cell to the shared dimensions (cover fit keeps aspect
+      // ratio honest — any tiny rounding difference is trimmed, not stretched)
       await sharp(sourcePath)
-        .resize(CELL_SIZE, CELL_SIZE, { fit: "cover" })
+        .resize(cellWidth, cellHeight, { fit: "cover" })
         .jpeg({ quality: 90 })
         .toFile(outputPath);
 
@@ -185,8 +196,8 @@ export async function composePhotoCollage({ sourcePaths, gridSize, shop, composi
 
       compositeLayers.push({
         input: outputPath,
-        left: col * CELL_SIZE,
-        top: row * CELL_SIZE,
+        left: col * cellWidth,
+        top: row * cellHeight,
       });
     }
   }
@@ -197,13 +208,13 @@ export async function composePhotoCollage({ sourcePaths, gridSize, shop, composi
     const col = index % cols;
     return {
       input: layer.input,
-      left: col * (CELL_SIZE + GAP),
-      top: row * (CELL_SIZE + GAP),
+      left: col * (cellWidth + GAP),
+      top: row * (cellHeight + GAP),
     };
   });
 
-  const previewWidth = CELL_SIZE * cols + GAP * (cols - 1);
-  const previewHeight = CELL_SIZE * rows + GAP * (rows - 1);
+  const previewWidth = cellWidth * cols + GAP * (cols - 1);
+  const previewHeight = cellHeight * rows + GAP * (rows - 1);
 
   const previewFilename = "preview.jpg";
   const previewPath = join(dir, previewFilename);

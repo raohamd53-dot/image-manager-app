@@ -123,13 +123,17 @@
     </div>
 
    <div class="plb-crop-tabs" id="plb-crop-tabs">
-      <button type="button" class="plb-crop-tab plb-selected" data-tab="default">Aspect Ratios</button>
-      <button type="button" class="plb-crop-tab" data-tab="presets">Preset Sizes</button>
-    </div>
+   <button type="button" class="plb-crop-tab plb-selected" data-tab="default">Aspect Ratios</button>
+   <button type="button" class="plb-crop-tab" data-tab="presets">Preset Sizes</button>
+</div>
 
-    <!-- Tab 1: Default Aspect Ratios -->
-    <div class="plb-crop-ratio-group" id="plb-crop-ratio-group" data-tab-panel="default">
-      <button type="button" class="plb-ratio-btn plb-selected" data-ratio="free">
+<!-- Shown instead of the tabs above for the 2nd+ image in a multi-image
+     upload, once the first image's dimensions are locked in -->
+<p class="plb-crop-locked-note plb-step-hidden" id="plb-crop-locked-note"></p>
+
+<!-- Tab 1: Default Aspect Ratios -->
+<div class="plb-crop-ratio-group" id="plb-crop-ratio-group" data-tab-panel="default">
+ <button type="button" class="plb-ratio-btn plb-selected" data-ratio="free">
         <span class="plb-ratio-label">Free</span>
         <span class="plb-ratio-dimension">Custom</span>
       </button>
@@ -194,10 +198,11 @@
       <img id="plb-crop-image" src="" alt="Crop preview" />
     </div>
 
-    <div class="plb-crop-actions">
-      <button type="button" class="plb-crop-skip-btn" id="plb-crop-skip-btn">Use Original</button>
-      <button type="button" class="plb-crop-apply-btn" id="plb-crop-apply-btn">Apply Crop</button>
-    </div>
+   <div class="plb-crop-actions">
+  <button type="button" class="plb-crop-reset-btn" id="plb-crop-reset-btn">Reset</button>
+  <button type="button" class="plb-crop-skip-btn" id="plb-crop-skip-btn">Use Original</button>
+  <button type="button" class="plb-crop-apply-btn" id="plb-crop-apply-btn">Apply Crop</button>
+</div>
 
   </div>
 </div>

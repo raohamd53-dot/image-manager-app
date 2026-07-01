@@ -261,14 +261,14 @@
   box-sizing: border-box;
 }
 
-/* Fixed SQUARE frame for the preview — independent of the actual
-   cropped image's aspect ratio. The image fits INSIDE this square
-   without stretching it, same behavior as the original placeholder. */
+/* Preview frame — aspect-ratio is always set inline by JS from the real
+   composed image dimensions, so no CSS fallback square is needed here.
+   object-fit:contain ensures the full image is always visible regardless
+   of the chosen crop shape (portrait, landscape, square, etc.). */
 .plb-preview-frame {
   width: 100%;
   max-width: 240px;
   max-height: 320px; /* ceiling for tall ratios like 9:16 Stories/TikTok */
-  aspect-ratio: 1 / 1; /* fallback only — overridden inline once real dimensions are known */
   border-radius: 6px;
   overflow: hidden;
   background: #f4f4f4;
@@ -282,7 +282,7 @@
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover; /* fills the square, crops overflow, never stretches */
+  object-fit: contain; /* show the full composed image at its real shape */
   border-radius: 6px;
 }
 
@@ -638,4 +638,32 @@
 
 .plb-crop-apply-btn:hover {
   opacity: 0.85;
+}
+
+/* Locked-dimensions notice shown for 2nd+ images in a multi-image set */
+.plb-crop-locked-note {
+  margin: 0;
+  padding: 10px 18px;
+  font-size: 12px;
+  color: #4a4a4a;
+  background: #f4f4f4;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+/* Reset button in the crop action bar */
+.plb-crop-reset-btn {
+  flex: 1;
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+  color: #6b6b6b;
+  border: 1px solid #d0d0d0;
+}
+
+.plb-crop-reset-btn:hover {
+  background: #f7f7f7;
+  color: #1a1a1a;
 }

@@ -108,18 +108,17 @@ export default function CompositionDetail() {
             <s-box key={img.id} padding="300" border="base" border-radius="200" background="surface">
               <s-stack gap="200">
                 <div style={{
-                  width: "100%",
-                  aspectRatio: "1",
-                  borderRadius: "6px",
-                  overflow: "hidden",
-                  background: "#f0f0f0",
-                }}>
-                  <img
-                    src={img.imageUrl}
-                    alt={`Cell ${img.position}`}
-                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                  />
-                </div>
+  width: "100%",
+  borderRadius: "6px",
+  overflow: "hidden",
+  background: "#f0f0f0",
+}}>
+  <img
+    src={img.imageUrl}
+    alt={`Cell ${img.position}`}
+    style={{ width: "100%", height: "auto", display: "block" }}
+  />
+</div>
                 <s-text tone="subdued" font-size="body-sm">
                   Position: {img.position}
                 </s-text>
