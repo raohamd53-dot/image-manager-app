@@ -91,7 +91,7 @@ export async function splitImageIntoGrid({ sourcePath, gridSize, shop, compositi
 
   // Build one merged preview from the actual generated tiles,
   // with a visible gap between cells so the grid division is clear
-  const GAP = 8; // pixels between each tile in the preview
+  const GAP = 18; // pixels between each tile in the preview
 
   const previewFilename = "preview.jpg";
   const previewPath = join(dir, previewFilename);
@@ -202,7 +202,7 @@ export async function composePhotoCollage({ sourcePaths, gridSize, shop, composi
     }
   }
 
-  const GAP = 8;
+  const GAP = 20;
   const gappedLayers = compositeLayers.map((layer, index) => {
     const row = Math.floor(index / cols);
     const col = index % cols;

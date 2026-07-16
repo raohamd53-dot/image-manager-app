@@ -14,12 +14,9 @@ export default function App() {
   const { apiKey } = useLoaderData();
   const location = useLocation();
 
-  const navItems = [
-  { label: "Dashboard",     href: "/app" },
-  { label: "Orders",        href: "/app/orders" },
-  { label: "Compositions",  href: "/app/compositions" },
-  { label: "Images",        href: "/app/images" },
-  { label: "Settings",      href: "/app/settings" },
+ const navItems = [
+  { label: "Editor",   href: "/app/editor" },
+  { label: "Settings", href: "/app/settings" },
 ];
 
   return (

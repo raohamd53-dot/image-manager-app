@@ -1,7 +1,6 @@
 // app/routes/webhooks.app.uninstalled.jsx
 
 import { authenticate } from "../shopify.server";
-import { processAppUninstalled } from "../lib/webhooks.server";
 
 export const action = async ({ request }) => {
   const { topic, shop } = await authenticate.webhook(request);
