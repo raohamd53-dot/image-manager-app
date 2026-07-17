@@ -36,9 +36,9 @@ const C = {
   textPrimary:   "#FFFFFF",
   textSecondary: "#d1d7dfff",
   muted:         "#b1b7c0ff",
-  success:       "#00C875",
-  warning:       "#F5A623",
-  danger:        "#FF5A5F",
+  success:       "#00c87570",
+  warning:       "#f5a523be",
+  danger:        "#ff5a6094",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -160,10 +160,7 @@ export const loader = async ({ request }) => {
 // Shopify Files upload helper
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Shopify Admin Files hard-rejects any image whose width × height exceeds this.
-// We defensively downscale (preserving aspect ratio) right before upload so
-// large collage / split composites never get bounced by Shopify's API.
-const MAX_MEGAPIXELS = 25_000_000; // 25 MP, matches Shopify's stated limit
+const MAX_MEGAPIXELS = 25_000_000;
 
 async function ensureUnderMegapixelLimit(buffer) {
   const meta = await sharp(buffer).metadata();
@@ -355,8 +352,6 @@ export const action = async ({ request }) => {
 
     const savedFiles = [];
     for (const { buffer, filename } of outputBuffers) {
-      // Guard against Shopify's 25MP-per-file limit before every upload —
-      // applies uniformly to crop, split, and collage outputs.
       const safeBuffer = await ensureUnderMegapixelLimit(buffer);
       savedFiles.push(await uploadBufferToShopifyFiles(admin, safeBuffer, filename));
     }
@@ -404,8 +399,7 @@ const GRID_OPTIONS = [
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const MAX_UPLOAD_LABEL = "10 MB";
 
-// Gap between tiles in the split preview — white stripe = visual divider
-const TILE_GAP = 10; // px
+const TILE_GAP = 10;
 
 const SPLIT_TILE_MODE_OPTIONS = [
   { key: "single", label: "Single Image",   desc: "One merged image" },
@@ -413,9 +407,9 @@ const SPLIT_TILE_MODE_OPTIONS = [
 ];
 
 const MODE_TABS = [
-  { key: "crop",    Icon: IcoCrop,    label: "Crop & Resize", desc: "Crop an image to any aspect ratio or custom size." },
-  { key: "split",   Icon: IcoSplit,   label: "Split Grid",    desc: "Crop an image then split it into equal tiles." },
-  { key: "collage", Icon: IcoCollage, label: "Collage",       desc: "Combine multiple images into a single grid layout." },
+  { key: "crop",    Icon: IcoCrop,    label: "Crop & Resize", desc: " Feature: Crop an image to any aspect ratio or custom size." },
+  { key: "split",   Icon: IcoSplit,   label: "Split Grid",    desc: " Feature: Crop an image then split it into 4 or 9 equal tiles." },
+  { key: "collage", Icon: IcoCollage, label: "Collage",       desc: " Feature: Combine multiple images into a single grid layout." },
 ];
 
 const CROP_CANVAS_HEIGHT = 440;
@@ -432,7 +426,7 @@ const pill = (active) => ({
   background:  active ? C.accent      : C.cardElevated,
   color:       active ? "#000"        : C.textSecondary,
   borderColor: active ? C.accent      : C.border,
-  transition:  "background 0.12s, color 0.12s, border-color 0.12s",
+  transition:  "background 0.25s cubic-bezier(0.4,0,0.2,1), color 0.25s cubic-bezier(0.4,0,0.2,1), border-color 0.25s cubic-bezier(0.4,0,0.2,1), transform 0.15s ease, box-shadow 0.2s ease",
 });
 
 const panelLabel = {
@@ -441,6 +435,106 @@ const panelLabel = {
 };
 
 const divider = { borderTop: `1px solid ${C.border}`, margin: "16px 0" };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Liquid Spinner — reusable animated loader orb
+// ─────────────────────────────────────────────────────────────────────────────
+
+function LiquidSpinner({ size = 24, color = C.accent, label }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+      <div style={{ position: "relative", width: size, height: size }}>
+        {/* Outer ring */}
+        <div style={{
+          position: "absolute", inset: 0, borderRadius: "50%",
+          border: `2px solid rgba(255,255,255,0.08)`,
+          borderTopColor: color,
+          animation: "liquidSpin 0.9s cubic-bezier(0.4,0,0.2,1) infinite",
+        }} />
+        {/* Inner pulse */}
+        <div style={{
+          position: "absolute", inset: "25%", borderRadius: "50%",
+          background: color,
+          opacity: 0.25,
+          animation: "liquidPulse 1.4s ease-in-out infinite",
+        }} />
+      </div>
+      {label && <span style={{ fontSize: 11, color: C.muted, letterSpacing: "0.04em" }}>{label}</span>}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ProgressDots — three bouncing dots for async wait states
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ProgressDots({ color = C.accent }) {
+  return (
+    <span style={{ display: "inline-flex", gap: 3, alignItems: "center" }}>
+      {[0, 1, 2].map((i) => (
+        <span key={i} style={{
+          width: 4, height: 4, borderRadius: "50%",
+          background: color,
+          display: "inline-block",
+          animation: `liquidBounce 1.1s ease-in-out ${i * 0.18}s infinite`,
+        }} />
+      ))}
+    </span>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SavingOverlay — full-panel overlay while uploading to Shopify
+// ─────────────────────────────────────────────────────────────────────────────
+
+function SavingOverlay({ visible }) {
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 8000,
+      background: "rgba(0,0,0,0.6)",
+      backdropFilter: "blur(6px)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      flexDirection: "column", gap: 16,
+      opacity: visible ? 1 : 0,
+      pointerEvents: visible ? "auto" : "none",
+      transition: "opacity 0.35s cubic-bezier(0.4,0,0.2,1)",
+    }}>
+      <div style={{
+        background: C.card, border: `1px solid ${C.border}`,
+        borderRadius: 16, padding: "32px 48px",
+        display: "flex", flexDirection: "column", alignItems: "center", gap: 18,
+        boxShadow: "0 24px 64px rgba(0,0,0,0.6)",
+        transform: visible ? "scale(1) translateY(0)" : "scale(0.94) translateY(8px)",
+        transition: "transform 0.35s cubic-bezier(0.34,1.56,0.64,1)",
+      }}>
+        <LiquidSpinner size={40} color={C.accent} />
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: C.textPrimary, marginBottom: 4 }}>
+            Saving to Shopify Files
+          </div>
+          <div style={{ fontSize: 11, color: C.muted }}>Uploading your image<ProgressDots /></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ImageLoadSkeleton — shimmering placeholder while an image loads
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ImageLoadSkeleton({ height = CROP_CANVAS_HEIGHT }) {
+  return (
+    <div style={{
+      width: "100%", height,
+      borderRadius: 8,
+      background: `linear-gradient(90deg, ${C.cardElevated} 25%, rgba(255,255,255,0.04) 50%, ${C.cardElevated} 75%)`,
+      backgroundSize: "200% 100%",
+      animation: "shimmer 1.6s ease-in-out infinite",
+      border: `1px solid ${C.border}`,
+    }} />
+  );
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // useSafeObjectUrl
@@ -455,6 +549,21 @@ function useSafeObjectUrl(file) {
     return () => URL.revokeObjectURL(objectUrl);
   }, [file]);
   return url;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FadeIn — wraps any child in a smooth mount animation
+// ─────────────────────────────────────────────────────────────────────────────
+
+function FadeIn({ children, delay = 0, style = {} }) {
+  return (
+    <div style={{
+      animation: `fadeSlideUp 0.4s cubic-bezier(0.34,1.2,0.64,1) ${delay}s both`,
+      ...style,
+    }}>
+      {children}
+    </div>
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -547,19 +656,19 @@ function CropCanvas({ imageUrl = null, onReady, onReadyChange, lockedRatio, onEr
       overflow: "hidden", display: "flex",
       alignItems: "center", justifyContent: "center",
       position: "relative", border: `1px solid ${C.border}`,
+      transition: "border-color 0.3s ease",
     }}>
+      {/* Skeleton shimmer while loading */}
       {!ready && !loadError && (
-        <div style={{
-          position: "absolute", inset: 0,
-          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-          gap: 10, color: C.muted, fontSize: 12, pointerEvents: "none",
-        }}>
+        <div style={{ position: "absolute", inset: 0 }}>
+          <ImageLoadSkeleton height="100%" />
           <div style={{
-            width: 26, height: 26, borderRadius: "50%",
-            border: `2px solid ${C.border}`, borderTopColor: C.accent,
-            animation: "editorSpin 0.8s linear infinite",
-          }} />
-          <span>Loading editor…</span>
+            position: "absolute", inset: 0,
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+            gap: 12, pointerEvents: "none",
+          }}>
+            <LiquidSpinner size={30} color={C.accent} label="Initialising editor…" />
+          </div>
         </div>
       )}
 
@@ -568,6 +677,7 @@ function CropCanvas({ imageUrl = null, onReady, onReadyChange, lockedRatio, onEr
           position: "absolute", inset: 0,
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
           gap: 8, color: C.danger, fontSize: 13, padding: "0 24px", textAlign: "center",
+          animation: "fadeSlideUp 0.3s ease both",
         }}>
           <IcoWarn size={28} stroke={C.danger} />
           <span style={{ color: C.textSecondary }}>Couldn&rsquo;t load this image.</span>
@@ -583,7 +693,8 @@ function CropCanvas({ imageUrl = null, onReady, onReadyChange, lockedRatio, onEr
         }
         style={{
           display: "block", maxWidth: "100%", maxHeight: "100%", objectFit: "contain",
-          opacity: ready ? 1 : 0, transition: "opacity 0.15s ease",
+          opacity: ready ? 1 : 0,
+          transition: "opacity 0.4s cubic-bezier(0.4,0,0.2,1)",
         }}
       />
     </div>
@@ -603,7 +714,7 @@ function CropToolPanel({
 
   const setRatio = (r) => cropperApiRef.current?.setAspectRatio(isNaN(r) ? NaN : r);
 
- const applyPixelTarget = (w, h, toolType = "custom", toolKey = `${w}x${h}`) => {
+  const applyPixelTarget = (w, h, toolType = "custom", toolKey = `${w}x${h}`) => {
     if (!w || !h || w <= 0 || h <= 0) return;
     setActiveTool({ type: toolType, key: toolKey });
     setCustomW(String(w)); setCustomH(String(h));
@@ -614,7 +725,7 @@ function CropToolPanel({
     <div style={{
       opacity: disabled ? 0.45 : 1,
       pointerEvents: disabled ? "none" : "auto",
-      transition: "opacity 0.12s",
+      transition: "opacity 0.3s cubic-bezier(0.4,0,0.2,1)",
     }}>
 
       {locked && lockedDims && (
@@ -623,6 +734,7 @@ function CropToolPanel({
           padding: "8px 10px", marginBottom: 12,
           background: C.cardElevated, borderRadius: 6,
           fontSize: 11, color: C.textSecondary, border: `1px solid ${C.border}`,
+          animation: "fadeSlideUp 0.3s ease both",
         }}>
           <IcoLock size={12} stroke={C.accentSecond} />
           Locked {lockedDims.width} × {lockedDims.height} px
@@ -630,14 +742,25 @@ function CropToolPanel({
       )}
 
       {!locked && (
-        <div style={{ display: "flex", gap: 2, marginBottom: 12, background: C.cardElevated, borderRadius: 6, padding: 3 }}>
+        <div style={{ display: "flex", gap: 2, marginBottom: 12, background: C.cardElevated, borderRadius: 6, padding: 3, position: "relative" }}>
+          {/* Sliding indicator pill */}
+          <div style={{
+            position: "absolute",
+            top: 3, bottom: 3,
+            left: cropTab === "ratios" ? 3 : "calc(50% + 1px)",
+            width: "calc(50% - 4px)",
+            background: C.accent, borderRadius: 4,
+            transition: "left 0.3s cubic-bezier(0.4,0,0.2,1)",
+            zIndex: 0,
+          }} />
           {["ratios", "presets"].map((t) => (
             <button key={t} type="button" onClick={() => setCropTab(t)} style={{
               flex: 1, padding: "6px", borderRadius: 4, border: "none",
               fontSize: 11, fontWeight: 600, cursor: "pointer",
-              background: cropTab === t ? C.accent : "transparent",
-              color:      cropTab === t ? C.textPrimary : C.muted,
-              transition: "background 0.12s, color 0.12s",
+              background: "transparent",
+              color: cropTab === t ? "#000" : C.muted,
+              position: "relative", zIndex: 1,
+              transition: "color 0.25s ease",
             }}>
               {t === "ratios" ? "Aspect Ratios" : "Presets"}
             </button>
@@ -646,58 +769,67 @@ function CropToolPanel({
       )}
 
       {!locked && cropTab === "ratios" && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 12 }}>
-          {RATIO_PRESETS.map((p) => {
-            const active = activeTool.type === "ratio" && activeTool.key === p.label;
-            return (
-              <button key={p.label} type="button" style={pill(active)}
-                onClick={() => {
-                  setActiveTool({ type: "ratio", key: p.label });
-                  setCustomW(""); setCustomH("");
-                  setRatio(p.value);
-                }}>
-                {p.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {!locked && cropTab === "presets" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <input type="number" placeholder="W" value={customW} min={1}
-              onChange={(e) => setCustomW(e.target.value)}
-              style={{ width: 56, padding: "6px 8px", background: C.cardElevated, border: `1px solid ${C.border}`, borderRadius: 5, fontSize: 12, color: C.textPrimary }} />
-            <span style={{ color: C.muted, fontSize: 12 }}>×</span>
-            <input type="number" placeholder="H" value={customH} min={1}
-              onChange={(e) => setCustomH(e.target.value)}
-              style={{ width: 56, padding: "6px 8px", background: C.cardElevated, border: `1px solid ${C.border}`, borderRadius: 5, fontSize: 12, color: C.textPrimary }} />
-            <button type="button"
-              onClick={() => { const w = parseInt(customW, 10); const h = parseInt(customH, 10); if (w > 0 && h > 0) applyPixelTarget(w, h); }}
-              style={{ padding: "6px 10px", background: C.accent, color: "#000", border: "none", borderRadius: 5, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
-              Apply
-            </button>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-            {SIZE_PRESETS.map((p) => {
-              const active = activeTool.type === "preset" && activeTool.key === p.label;
+        <FadeIn>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 12 }}>
+            {RATIO_PRESETS.map((p) => {
+              const active = activeTool.type === "ratio" && activeTool.key === p.label;
               return (
-                <button key={p.label} type="button"
-                  onClick={() => applyPixelTarget(p.w, p.h, "preset", p.label)}
-                  style={{
-                    display: "flex", justifyContent: "space-between", alignItems: "center",
-                    padding: "7px 10px", borderRadius: 6, border: `1px solid ${active ? C.accent : C.border}`,
-                    background: active ? C.accent : C.cardElevated,
-                    cursor: "pointer",
+                <button key={p.label} type="button" style={pill(active)}
+                  onClick={() => {
+                    setActiveTool({ type: "ratio", key: p.label });
+                    setCustomW(""); setCustomH("");
+                    setRatio(p.value);
                   }}>
-                  <span style={{ fontSize: 12, fontWeight: 500, color: active ? "#000" : C.textSecondary }}>{p.label}</span>
-                  <span style={{ fontSize: 10, color: active ? "#000" : C.muted }}>{p.w}×{p.h}</span>
+                  {p.label}
                 </button>
               );
             })}
           </div>
-        </div>
+        </FadeIn>
+      )}
+
+      {!locked && cropTab === "presets" && (
+        <FadeIn>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <input type="number" placeholder="W" value={customW} min={1}
+                onChange={(e) => setCustomW(e.target.value)}
+                style={{ width: 56, padding: "6px 8px", background: C.cardElevated, border: `1px solid ${C.border}`, borderRadius: 5, fontSize: 12, color: C.textPrimary, transition: "border-color 0.2s ease" }} />
+              <span style={{ color: C.muted, fontSize: 12 }}>×</span>
+              <input type="number" placeholder="H" value={customH} min={1}
+                onChange={(e) => setCustomH(e.target.value)}
+                style={{ width: 56, padding: "6px 8px", background: C.cardElevated, border: `1px solid ${C.border}`, borderRadius: 5, fontSize: 12, color: C.textPrimary, transition: "border-color 0.2s ease" }} />
+              <button type="button"
+                onClick={() => { const w = parseInt(customW, 10); const h = parseInt(customH, 10); if (w > 0 && h > 0) applyPixelTarget(w, h); }}
+                style={{ padding: "6px 10px", background: C.accent, color: "#000", border: "none", borderRadius: 5, fontSize: 11, fontWeight: 700, cursor: "pointer", transition: "transform 0.15s ease, opacity 0.15s ease" }}
+                onMouseEnter={(e) => { e.currentTarget.style.transform = "scale(1.04)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; }}>
+                Apply
+              </button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              {SIZE_PRESETS.map((p) => {
+                const active = activeTool.type === "preset" && activeTool.key === p.label;
+                return (
+                  <button key={p.label} type="button"
+                    onClick={() => applyPixelTarget(p.w, p.h, "preset", p.label)}
+                    style={{
+                      display: "flex", justifyContent: "space-between", alignItems: "center",
+                      padding: "7px 10px", borderRadius: 6, border: `1px solid ${active ? C.accent : C.border}`,
+                      background: active ? C.accent : C.cardElevated,
+                      cursor: "pointer",
+                      transition: "border-color 0.25s cubic-bezier(0.4,0,0.2,1), background 0.25s cubic-bezier(0.4,0,0.2,1), transform 0.15s ease",
+                    }}
+                    onMouseEnter={(e) => { if (!active) e.currentTarget.style.transform = "translateX(2px)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.transform = "translateX(0)"; }}>
+                    <span style={{ fontSize: 12, fontWeight: 500, color: active ? "#000" : C.textSecondary, transition: "color 0.2s ease" }}>{p.label}</span>
+                    <span style={{ fontSize: 10, color: active ? "#000" : C.muted, transition: "color 0.2s ease" }}>{p.w}×{p.h}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </FadeIn>
       )}
 
       {showReset && (
@@ -714,7 +846,10 @@ function CropToolPanel({
             padding: "8px 10px", border: `1px solid ${C.border}`,
             borderRadius: 6, fontSize: 12, cursor: "pointer",
             background: C.cardElevated, color: C.textSecondary,
-          }}>
+            transition: "border-color 0.2s ease, background 0.2s ease, transform 0.15s ease",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.accentSecond; e.currentTarget.style.transform = "scale(1.01)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "scale(1)"; }}>
           <IcoRefresh size={12} />
           Reset Crop
         </button>
@@ -725,18 +860,19 @@ function CropToolPanel({
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SplitTilePreview
-// Gap background = white → white divider lines between tiles
 // ─────────────────────────────────────────────────────────────────────────────
 
 function SplitTilePreview({ croppedBlobUrl, gridSize }) {
   const [rows, cols] = gridSize.split("x").map(Number);
   const cellCount    = rows * cols;
   const [naturalSize, setNaturalSize] = useState(null);
+  const [loaded, setLoaded]           = useState(false);
 
   useEffect(() => {
+    setLoaded(false);
     if (!croppedBlobUrl) { setNaturalSize(null); return; }
     const img  = new Image();
-    img.onload = () => setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
+    img.onload = () => { setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight }); setLoaded(true); };
     img.src    = croppedBlobUrl;
   }, [croppedBlobUrl]);
 
@@ -745,18 +881,18 @@ function SplitTilePreview({ croppedBlobUrl, gridSize }) {
     : "1";
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      {/*
-        White divider lines = white gap background between tiles.
-        gap: TILE_GAP gives the 18 px white stripe between each cell.
-        background: "#ffffff" is what shows through the gap.
-      */}
+    <div style={{
+      display: "flex", flexDirection: "column", gap: 12,
+      opacity: loaded ? 1 : 0,
+      transform: loaded ? "translateY(0)" : "translateY(6px)",
+      transition: "opacity 0.4s cubic-bezier(0.4,0,0.2,1), transform 0.4s cubic-bezier(0.34,1.2,0.64,1)",
+    }}>
       <div style={{
         display: "grid",
         gridTemplateColumns: `repeat(${cols}, 1fr)`,
         gap: TILE_GAP,
         borderRadius: 8, overflow: "hidden",
-        background: "#ffffff",          // ← white gap = white divider lines
+        background: "#ffffff",
         padding: 0,
       }}>
         {Array.from({ length: cellCount }).map((_, i) => {
@@ -765,7 +901,10 @@ function SplitTilePreview({ croppedBlobUrl, gridSize }) {
           const xPct = cols > 1 ? (col / (cols - 1)) * 100 : 50;
           const yPct = rows > 1 ? (row / (rows - 1)) * 100 : 50;
           return (
-            <div key={i} style={{ aspectRatio: tileAspect, overflow: "hidden" }}>
+            <div key={i} style={{
+              aspectRatio: tileAspect, overflow: "hidden",
+              animation: `tileReveal 0.45s cubic-bezier(0.34,1.2,0.64,1) ${i * 0.06}s both`,
+            }}>
               <div style={{
                 width: "100%", height: "100%",
                 backgroundImage: `url(${croppedBlobUrl})`,
@@ -795,15 +934,17 @@ function SplitTilePreview({ croppedBlobUrl, gridSize }) {
 function LibraryGrid({ files, selectedIds, onToggle, maxSelect, loading }) {
   if (loading) {
     return (
-      <div style={{ padding: "40px 0", textAlign: "center", color: C.muted, fontSize: 13 }}>
-        <div style={{ width: 20, height: 20, margin: "0 auto 8px", borderRadius: "50%", border: `2px solid ${C.border}`, borderTopColor: C.accent, animation: "editorSpin 0.8s linear infinite" }} />
-        Loading library…
+      <div style={{ padding: "40px 0", textAlign: "center" }}>
+        <LiquidSpinner size={28} color={C.accent} label="Loading library…" />
       </div>
     );
   }
   if (!files.length) {
     return (
-      <div style={{ padding: "40px 0", textAlign: "center", color: C.muted, fontSize: 13 }}>
+      <div style={{
+        padding: "40px 0", textAlign: "center", color: C.muted, fontSize: 13,
+        animation: "fadeSlideUp 0.3s ease both",
+      }}>
         <div style={{ marginBottom: 8 }}><IcoImage size={32} stroke={C.border} /></div>
         <div>No images found. Upload some to your Shopify Files library first.</div>
       </div>
@@ -812,7 +953,7 @@ function LibraryGrid({ files, selectedIds, onToggle, maxSelect, loading }) {
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))", gap: 6 }}>
-      {files.map((f) => {
+      {files.map((f, idx) => {
         const selected = selectedIds.includes(f.id);
         const atMax    = !selected && selectedIds.length >= maxSelect;
         return (
@@ -829,10 +970,15 @@ function LibraryGrid({ files, selectedIds, onToggle, maxSelect, loading }) {
               cursor: atMax ? "not-allowed" : "pointer",
               opacity: atMax ? 0.35 : 1,
               background: C.cardElevated,
-              transition: "border-color 0.12s, opacity 0.12s",
+              transform: selected ? "scale(0.95)" : "scale(1)",
+              boxShadow: selected ? `0 0 0 3px rgba(0,200,117,0.25)` : "none",
+              transition: "border-color 0.25s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease, transform 0.2s cubic-bezier(0.34,1.2,0.64,1), box-shadow 0.25s ease",
+              animation: `tileReveal 0.4s cubic-bezier(0.34,1.2,0.64,1) ${Math.min(idx * 0.025, 0.5)}s both`,
             }}>
             <img src={f.image.url} alt={f.alt || ""}
-              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", transition: "transform 0.3s ease" }}
+              onMouseEnter={(e) => { if (!selected && !atMax) e.currentTarget.style.transform = "scale(1.06)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; }} />
             {f.image.width && (
               <div style={{
                 position: "absolute", bottom: 3, left: 3,
@@ -847,6 +993,7 @@ function LibraryGrid({ files, selectedIds, onToggle, maxSelect, loading }) {
                 position: "absolute", top: 4, right: 4,
                 width: 18, height: 18, borderRadius: "50%",
                 background: C.accent, display: "flex", alignItems: "center", justifyContent: "center",
+                animation: "popIn 0.25s cubic-bezier(0.34,1.56,0.64,1) both",
               }}>
                 <IcoCheck size={10} stroke="#000" strokeWidth={3} />
               </div>
@@ -875,6 +1022,7 @@ function SourcePicker({ mode, loaderData, onConfirm, onWarning }) {
   const [selectedLibFiles, setSelectedLibFiles] = useState([]);
   const [uploadedFiles,    setUploadedFiles]    = useState([]);
   const [confirming,       setConfirming]       = useState(false);
+  const [isDragOver,       setIsDragOver]       = useState(false);
 
   const [uploadPreviews, setUploadPreviews] = useState([]);
   useEffect(() => {
@@ -958,16 +1106,47 @@ function SourcePicker({ mode, loaderData, onConfirm, onWarning }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
-      <div style={{
-        padding: "10px 14px", background: C.cardElevated,
-        borderRadius: 8, fontSize: 13, color: C.textSecondary,
-        border: `1px solid ${C.border}`,
-      }}>
-        {MODE_TABS.find((m) => m.key === mode)?.desc}
-        {isMulti && ` Select 1–${maxSelect} images. Add images to individual cells in the next step.`}
-      </div>
+      {confirming && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 7000,
+          background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          animation: "fadeIn 0.2s ease both",
+        }}>
+          <div style={{
+            background: C.card, border: `1px solid ${C.border}`,
+            borderRadius: 14, padding: "28px 40px",
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 14,
+            animation: "fadeSlideUp 0.3s cubic-bezier(0.34,1.2,0.64,1) both",
+          }}>
+            <LiquidSpinner size={32} color={C.accentSecond} />
+            <span style={{ fontSize: 13, color: C.textSecondary }}>Preparing image{selectedLibFiles.length > 1 ? "s" : ""}…</span>
+          </div>
+        </div>
+      )}
 
-      <div style={{ display: "flex", gap: 2, background: C.cardElevated, borderRadius: 8, padding: 3 }}>
+      <FadeIn>
+        <div style={{
+          padding: "10px 14px", background: C.card,
+          borderRadius: 8, fontSize: 13, color: C.warning,
+          border: `1px solid ${C.warning}`,
+        }}>
+          {MODE_TABS.find((m) => m.key === mode)?.desc}
+          {isMulti && ` Select 1–${maxSelect} images. Add images to individual cells in the next step.`}
+        </div>
+      </FadeIn>
+
+      {/* Tab switcher with sliding indicator */}
+      <div style={{ display: "flex", gap: 2, background: C.cardElevated, borderRadius: 8, padding: 3, position: "relative" }}>
+        <div style={{
+          position: "absolute",
+          top: 3, bottom: 3,
+          left: tab === "library" ? 3 : "calc(50% + 1px)",
+          width: "calc(50% - 4px)",
+          background: C.accent, borderRadius: 6,
+          transition: "left 0.32s cubic-bezier(0.4,0,0.2,1)",
+          zIndex: 0,
+        }} />
         {[
           { key: "library", label: "Store Library",        Icon: IcoImage },
           { key: "upload",  label: "Upload from Computer", Icon: IcoUpload },
@@ -976,10 +1155,11 @@ function SourcePicker({ mode, loaderData, onConfirm, onWarning }) {
             flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
             padding: "8px 12px", fontSize: 12, cursor: "pointer",
             fontWeight: tab === key ? 700 : 400,
-            color:      tab === key ? C.textPrimary : C.muted,
-            background: tab === key ? C.accent : "transparent",
-            border: `1px solid ${C.border}`, borderRadius: 6,
-            transition: "background 0.12s, color 0.12s",
+            color: tab === key ? "#000" : C.muted,
+            background: "transparent",
+            border: "none", borderRadius: 6,
+            position: "relative", zIndex: 1,
+            transition: "color 0.25s ease",
           }}>
             <Icon size={13} />
             {label}
@@ -988,112 +1168,153 @@ function SourcePicker({ mode, loaderData, onConfirm, onWarning }) {
       </div>
 
       {tab === "library" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ display: "flex", gap: 6 }}>
-            <div style={{ flex: 1, position: "relative" }}>
-              <IcoSearch size={13} stroke={C.muted} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
-              <input
-                value={searchQ}
-                onChange={(e) => setSearchQ(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && fetcher.load(`/app/editor?q=${encodeURIComponent(searchQ)}`)}
-                placeholder="Search by filename…"
+        <FadeIn>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "flex", gap: 6 }}>
+              <div style={{ flex: 1, position: "relative" }}>
+                <IcoSearch size={13} stroke={C.muted} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
+                <input
+                  value={searchQ}
+                  onChange={(e) => setSearchQ(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && fetcher.load(`/app/editor?q=${encodeURIComponent(searchQ)}`)}
+                  placeholder="Search by filename…"
+                  style={{
+                    width: "100%", padding: "8px 10px 8px 32px", boxSizing: "border-box",
+                    background: C.cardElevated, border: `1px solid ${C.border}`,
+                    borderRadius: 6, fontSize: 12, color: C.textPrimary,
+                    transition: "border-color 0.2s ease, box-shadow 0.2s ease",
+                    outline: "none",
+                  }}
+                  onFocus={(e) => { e.target.style.borderColor = C.accentSecond; e.target.style.boxShadow = `0 0 0 3px rgba(90,200,250,0.12)`; }}
+                  onBlur={(e) => { e.target.style.borderColor = C.border; e.target.style.boxShadow = "none"; }}
+                />
+              </div>
+              <button type="button"
+                onClick={() => fetcher.load(`/app/editor?q=${encodeURIComponent(searchQ)}`)}
                 style={{
-                  width: "100%", padding: "8px 10px 8px 32px", boxSizing: "border-box",
-                  background: C.cardElevated, border: `1px solid ${C.border}`,
-                  borderRadius: 6, fontSize: 12, color: C.textPrimary,
+                  padding: "8px 14px", background: C.cardElevated, border: `1px solid ${C.border}`,
+                  borderRadius: 6, fontSize: 12, cursor: "pointer", color: C.textPrimary,
+                  display: "flex", alignItems: "center", gap: 5,
+                  transition: "border-color 0.2s ease, background 0.2s ease, transform 0.15s ease",
                 }}
-              />
-            </div>
-            <button type="button"
-              onClick={() => fetcher.load(`/app/editor?q=${encodeURIComponent(searchQ)}`)}
-              style={{ padding: "8px 14px", background: C.cardElevated, border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12, cursor: "pointer", color: C.textPrimary, display: "flex", alignItems: "center", gap: 5 }}>
-              <IcoSearch size={12} />
-              Search
-            </button>
-          </div>
-
-          <LibraryGrid
-            files={libraryFiles}
-            selectedIds={selectedLibIds}
-            onToggle={toggleLibraryFile}
-            maxSelect={maxSelect}
-            loading={fetcher.state !== "idle" && !loadingMore}
-          />
-
-          {isMulti && selectedLibIds.length > 0 && (
-            <div style={{ fontSize: 11, color: C.muted }}>{selectedLibIds.length} / {maxSelect} selected</div>
-          )}
-
-          {pageInfo.hasNextPage && (
-            <div style={{ textAlign: "center" }}>
-              <button type="button" disabled={loadingMore}
-                onClick={() => { setLoadingMore(true); fetcher.load(`/app/editor?after=${pageInfo.endCursor}&q=${searchQ}&_append=1`); }}
-                style={{ padding: "7px 18px", fontSize: 12, cursor: "pointer", background: C.cardElevated, border: `1px solid ${C.border}`, borderRadius: 6, color: C.textPrimary }}>
-                {loadingMore ? "Loading…" : "Load more"}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.accentSecond; e.currentTarget.style.transform = "scale(1.02)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "scale(1)"; }}>
+                {fetcher.state !== "idle" && !loadingMore
+                  ? <><LiquidSpinner size={12} color={C.accent} /><span>Searching…</span></>
+                  : <><IcoSearch size={12} /><span>Search</span></>}
               </button>
             </div>
-          )}
 
-          {loaderData?.error && (
-            <div style={{ display: "flex", alignItems: "center", gap: 6, color: C.danger, fontSize: 12, padding: "8px 0" }}>
-              <IcoWarn size={14} stroke={C.danger} />
-              {loaderData.error} — Make sure <strong>read_files</strong> scope is approved.
-            </div>
-          )}
-        </div>
+            <LibraryGrid
+              files={libraryFiles}
+              selectedIds={selectedLibIds}
+              onToggle={toggleLibraryFile}
+              maxSelect={maxSelect}
+              loading={fetcher.state !== "idle" && !loadingMore}
+            />
+
+            {isMulti && selectedLibIds.length > 0 && (
+              <div style={{ fontSize: 11, color: C.muted, animation: "fadeSlideUp 0.25s ease both" }}>
+                {selectedLibIds.length} / {maxSelect} selected
+              </div>
+            )}
+
+            {pageInfo.hasNextPage && (
+              <div style={{ textAlign: "center" }}>
+                <button type="button" disabled={loadingMore}
+                  onClick={() => { setLoadingMore(true); fetcher.load(`/app/editor?after=${pageInfo.endCursor}&q=${searchQ}&_append=1`); }}
+                  style={{
+                    padding: "7px 18px", fontSize: 12, cursor: loadingMore ? "default" : "pointer",
+                    background: C.cardElevated, border: `1px solid ${C.border}`,
+                    borderRadius: 6, color: C.textPrimary, display: "inline-flex", alignItems: "center", gap: 6,
+                    transition: "transform 0.15s ease, border-color 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => { if (!loadingMore) { e.currentTarget.style.transform = "scale(1.02)"; e.currentTarget.style.borderColor = C.muted; } }}
+                  onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.borderColor = C.border; }}>
+                  {loadingMore ? <><LiquidSpinner size={12} color={C.accent} /><span>Loading…</span></> : "Load more"}
+                </button>
+              </div>
+            )}
+
+            {loaderData?.error && (
+              <div style={{ display: "flex", alignItems: "center", gap: 6, color: C.danger, fontSize: 12, padding: "8px 0", animation: "fadeSlideUp 0.3s ease both" }}>
+                <IcoWarn size={14} stroke={C.danger} />
+                {loaderData.error} — Make sure <strong>read_files</strong> scope is approved.
+              </div>
+            )}
+          </div>
+        </FadeIn>
       )}
 
       {tab === "upload" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <div
-            role="button" tabIndex={0}
-            onClick={() => inputRef.current?.click()}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); inputRef.current?.click(); } }}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => { e.preventDefault(); handleUpload(e.dataTransfer.files); }}
-            style={{
-              border: `2px dashed ${C.border}`, borderRadius: 8,
-              padding: "40px 24px", textAlign: "center",
-              cursor: "pointer", background: C.cardElevated,
-              transition: "border-color 0.12s",
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.accent; }}
-            onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; }}
-          >
-            <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp"
-              multiple={isMulti} style={{ display: "none" }}
-              onChange={(e) => handleUpload(e.target.files)} />
-            <div style={{ marginBottom: 10 }}><IcoUpload size={28} stroke={C.muted} /></div>
-            <div style={{ fontWeight: 600, fontSize: 13, color: C.textPrimary }}>Click or drag to upload</div>
-            <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
-              JPEG · PNG · WebP · up to {MAX_UPLOAD_LABEL} each{isMulti ? ` · up to ${maxSelect} files` : ""}
+        <FadeIn>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div
+              role="button" tabIndex={0}
+              onClick={() => inputRef.current?.click()}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); inputRef.current?.click(); } }}
+              onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+              onDragLeave={() => setIsDragOver(false)}
+              onDrop={(e) => { e.preventDefault(); setIsDragOver(false); handleUpload(e.dataTransfer.files); }}
+              style={{
+                border: `2px dashed ${isDragOver ? C.accent : C.border}`,
+                borderRadius: 8,
+                padding: "40px 24px", textAlign: "center",
+                cursor: "pointer",
+                background: isDragOver ? "rgba(0,200,117,0.06)" : C.cardElevated,
+                transform: isDragOver ? "scale(1.01)" : "scale(1)",
+                transition: "border-color 0.25s cubic-bezier(0.4,0,0.2,1), background 0.25s ease, transform 0.25s cubic-bezier(0.34,1.2,0.64,1)",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.accent; }}
+              onMouseLeave={(e) => { if (!isDragOver) e.currentTarget.style.borderColor = C.border; }}
+            >
+              <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp"
+                multiple={isMulti} style={{ display: "none" }}
+                onChange={(e) => handleUpload(e.target.files)} />
+              <div style={{
+                marginBottom: 10,
+                transform: isDragOver ? "translateY(-4px) scale(1.1)" : "translateY(0) scale(1)",
+                transition: "transform 0.3s cubic-bezier(0.34,1.2,0.64,1)",
+              }}>
+                <IcoUpload size={28} stroke={isDragOver ? C.accent : C.muted} />
+              </div>
+              <div style={{ fontWeight: 600, fontSize: 13, color: isDragOver ? C.accent : C.textPrimary, transition: "color 0.2s ease" }}>
+                {isDragOver ? "Drop to upload" : "Click or drag to upload"}
+              </div>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
+                JPEG · PNG · WebP · up to {MAX_UPLOAD_LABEL} each{isMulti ? ` · up to ${maxSelect} files` : ""}
+              </div>
             </div>
-          </div>
 
-          {uploadedFiles.length > 0 && (
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {uploadedFiles.map((f, i) => (
-                <div key={i} style={{
-                  position: "relative", width: 64, height: 64,
-                  borderRadius: 6, overflow: "hidden", border: `1px solid ${C.border}`,
-                }}>
-                  <img src={uploadPreviews[i]} alt=""
-                    style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  <button type="button"
-                    onClick={() => setUploadedFiles((p) => p.filter((_, j) => j !== i))}
-                    style={{
-                      position: "absolute", top: 2, right: 2,
-                      background: "rgba(0,0,0,0.75)", color: "#fff", border: "none",
-                      borderRadius: "50%", width: 16, height: 16, fontSize: 9,
-                      cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-                    }}>
-                    <IcoX size={8} stroke="#fff" strokeWidth={2.5} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+            {uploadedFiles.length > 0 && (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {uploadedFiles.map((f, i) => (
+                  <div key={i} style={{
+                    position: "relative", width: 64, height: 64,
+                    borderRadius: 6, overflow: "hidden", border: `1px solid ${C.border}`,
+                    animation: "popIn 0.3s cubic-bezier(0.34,1.56,0.64,1) both",
+                  }}>
+                    <img src={uploadPreviews[i]} alt=""
+                      style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    <button type="button"
+                      onClick={() => setUploadedFiles((p) => p.filter((_, j) => j !== i))}
+                      style={{
+                        position: "absolute", top: 2, right: 2,
+                        background: "rgba(0,0,0,0.75)", color: "#fff", border: "none",
+                        borderRadius: "50%", width: 16, height: 16, fontSize: 9,
+                        cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                        transition: "transform 0.15s ease, background 0.15s ease",
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = C.danger; e.currentTarget.style.transform = "scale(1.1)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(0,0,0,0.75)"; e.currentTarget.style.transform = "scale(1)"; }}>
+                      <IcoX size={8} stroke="#fff" strokeWidth={2.5} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </FadeIn>
       )}
 
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
@@ -1106,8 +1327,15 @@ function SourcePicker({ mode, loaderData, onConfirm, onWarning }) {
             border: "none", borderRadius: 7,
             fontSize: 13, fontWeight: 700,
             cursor: canConfirm && !confirming ? "pointer" : "default",
-          }}>
-          {confirming ? "Preparing…" : <><span>Continue</span><IcoArrowRight size={14} stroke={canConfirm ? "#000" : C.muted} /></>}
+            transform: canConfirm && !confirming ? "scale(1)" : "scale(0.98)",
+            boxShadow: canConfirm && !confirming ? `0 4px 16px rgba(0,200,117,0.25)` : "none",
+            transition: "background 0.3s cubic-bezier(0.4,0,0.2,1), color 0.3s ease, transform 0.25s cubic-bezier(0.34,1.2,0.64,1), box-shadow 0.3s ease",
+          }}
+          onMouseEnter={(e) => { if (canConfirm && !confirming) e.currentTarget.style.transform = "scale(1.03)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.transform = canConfirm && !confirming ? "scale(1)" : "scale(0.98)"; }}>
+          {confirming
+            ? <><ProgressDots color="#000" /><span>Preparing…</span></>
+            : <><span>Continue</span><IcoArrowRight size={14} stroke={canConfirm ? "#000" : C.muted} /></>}
         </button>
       </div>
     </div>
@@ -1135,8 +1363,12 @@ function GridSizeSelector({ gridSize, setGridSize, mode }) {
                 border: `1px solid ${active ? C.accent : C.border}`,
                 cursor: "pointer",
                 background: active ? "rgba(0,200,117,0.08)" : C.cardElevated,
-                transition: "border-color 0.12s, background 0.12s",
-              }}>
+                transform: active ? "scale(1.03)" : "scale(1)",
+                boxShadow: active ? `0 0 0 3px rgba(0,200,117,0.15)` : "none",
+                transition: "border-color 0.25s cubic-bezier(0.4,0,0.2,1), background 0.25s ease, transform 0.2s cubic-bezier(0.34,1.2,0.64,1), box-shadow 0.25s ease",
+              }}
+              onMouseEnter={(e) => { if (!active) e.currentTarget.style.transform = "scale(1.02)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.transform = active ? "scale(1.03)" : "scale(1)"; }}>
               <div style={{
                 display: "grid",
                 gridTemplateColumns: `repeat(${c}, 1fr)`,
@@ -1144,10 +1376,13 @@ function GridSizeSelector({ gridSize, setGridSize, mode }) {
                 width: 30, height: 30, gap: 2,
               }}>
                 {Array.from({ length: cells }).map((_, i) => (
-                  <div key={i} style={{ background: active ? C.accent : C.muted, borderRadius: 1.5 }} />
+                  <div key={i} style={{
+                    background: active ? C.accent : C.muted, borderRadius: 1.5,
+                    transition: "background 0.25s ease",
+                  }} />
                 ))}
               </div>
-              <span style={{ fontSize: 11, fontWeight: 600, color: active ? C.accent : C.textSecondary }}>{value}</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: active ? C.accent : C.textSecondary, transition: "color 0.2s ease" }}>{value}</span>
               <span style={{ fontSize: 10, color: C.muted }}>{cells} {mode === "split" ? "tile" : "cell"}{cells > 1 ? "s" : ""}</span>
             </button>
           );
@@ -1165,7 +1400,7 @@ function SplitTileModeToggle({ value, onChange }) {
   return (
     <div>
       <div style={panelLabel}>Save Output As</div>
-      <div style={{ display: "flex", gap: 6 }}>
+      <div style={{ display: "flex", gap: 6, position: "relative" }}>
         {SPLIT_TILE_MODE_OPTIONS.map(({ key, label, desc }) => {
           const active = value === key;
           return (
@@ -1176,9 +1411,11 @@ function SplitTileModeToggle({ value, onChange }) {
                 borderRadius: 7, border: `1px solid ${active ? C.accent : C.border}`,
                 cursor: "pointer",
                 background: active ? "rgba(0,200,117,0.08)" : C.cardElevated,
-                transition: "border-color 0.12s, background 0.12s",
+                transform: active ? "scale(1.03)" : "scale(1)",
+                boxShadow: active ? `0 0 0 3px rgba(0,200,117,0.15)` : "none",
+                transition: "border-color 0.25s cubic-bezier(0.4,0,0.2,1), background 0.25s ease, transform 0.2s cubic-bezier(0.34,1.2,0.64,1), box-shadow 0.25s ease",
               }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: active ? C.accent : C.textSecondary }}>{label}</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: active ? C.accent : C.textSecondary, transition: "color 0.2s ease" }}>{label}</span>
               <span style={{ fontSize: 9, color: C.muted }}>{desc}</span>
             </button>
           );
@@ -1193,8 +1430,8 @@ function SplitTileModeToggle({ value, onChange }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function EditPanel({ mode, pickedData, gridSize, setGridSize, onSave, saving }) {
-  const cropperApiRef   = useRef(null);
-  const cellFileInputRef = useRef(null);  // ← per-cell file picker
+  const cropperApiRef    = useRef(null);
+  const cellFileInputRef = useRef(null);
 
   const [cropperReady,    setCropperReady]    = useState(false);
   const [activeTool,      setActiveTool]      = useState({ type: "ratio", key: "Free" });
@@ -1213,11 +1450,12 @@ function EditPanel({ mode, pickedData, gridSize, setGridSize, onSave, saving }) 
   const [recropIndex,      setRecropIndex]      = useState(null);
   const [loadError,        setLoadError]        = useState(false);
 
-  // Extra uploaded files added per-cell during the edit step.
-  // Keyed by cell index so each cell can independently hold its own File.
   const [extraCellFiles,   setExtraCellFiles]   = useState({});
-  // Which cell index the hidden file input is currently targeting.
   const [cellPickTarget,   setCellPickTarget]   = useState(null);
+
+  // Track per-cell crop-confirm animation
+  const [justCroppedCell, setJustCroppedCell] = useState(null);
+
   useEffect(
     () => () => Object.values(croppedPreviews).forEach((u) => URL.revokeObjectURL(u)),
     [], // eslint-disable-line react-hooks/exhaustive-deps
@@ -1232,16 +1470,12 @@ function EditPanel({ mode, pickedData, gridSize, setGridSize, onSave, saving }) 
     ? (pickedData.libraryFiles[0]?._objectUrl ?? pickedData.libraryFiles[0]?.image?.url ?? null)
     : uploadedFileUrl;
 
-  // Base images from the picker step (library or upload), padded to cellCount
-  // slots with nulls so per-cell extras can fill any gap by index.
   const baseImages = useMemo(() => {
     const picked = [...pickedData.libraryFiles, ...pickedData.uploadedFiles];
     const slots  = Array.from({ length: cellCount }, (_, i) => picked[i] ?? null);
     return slots;
   }, [pickedData.libraryFiles, pickedData.uploadedFiles, cellCount]);
 
-  // Merge per-cell extras: if a slot was null or the user re-picked for that
-  // cell, the extraCellFiles entry wins.
   const collageImages = useMemo(
     () => baseImages.map((base, i) => extraCellFiles[i] ?? base),
     [baseImages, extraCellFiles],
@@ -1289,6 +1523,8 @@ function EditPanel({ mode, pickedData, gridSize, setGridSize, onSave, saving }) 
         return { ...prev, [cropIndex]: URL.createObjectURL(blob) };
       });
       setSkippedCells((prev) => { if (!prev[cropIndex]) return prev; const next = { ...prev }; delete next[cropIndex]; return next; });
+      setJustCroppedCell(cropIndex);
+      setTimeout(() => setJustCroppedCell(null), 600);
     }
     advanceCollageCursor(recropIndex !== null);
   }, [cropIndex, lockedDims, recropIndex, advanceCollageCursor]);
@@ -1313,36 +1549,19 @@ function EditPanel({ mode, pickedData, gridSize, setGridSize, onSave, saving }) 
     setActiveTool({ type: "ratio", key: "Free" }); setLoadError(false);
   }, []);
 
-  // Open the hidden file input targeting a specific cell index.
   const handlePickForCell = useCallback((i) => {
     setCellPickTarget(i);
-    // Small timeout lets state settle before the dialog opens.
     setTimeout(() => cellFileInputRef.current?.click(), 0);
   }, []);
 
-  // Called when the user selects a file via the per-cell input.
-  //
-  // FIX: previously this only stored the new File in extraCellFiles and reset
-  // recropIndex to null. That left any *existing* croppedPreviews/skippedCells
-  // entry for this cell in place — so the thumbnail grid (which prefers
-  // `preview` over `fallback`) kept showing the OLD cropped image, and because
-  // the cell still counted as "resolved" (`allCropped` stayed true), the crop
-  // canvas section — gated on `!allCropped || recropIndex !== null` — never
-  // rendered, so there was no way to crop the newly-picked file either.
-  //
-  // Fix: clear this cell's stale crop/skip state so it's treated as unresolved,
-  // and set recropIndex so the crop canvas opens immediately on the new image.
   const handleCellFileChange = useCallback((e) => {
     const file = e.target.files?.[0];
-    // Reset so the same file can be re-selected later if needed.
     e.target.value = "";
     if (!file || cellPickTarget === null) return;
     const idx = cellPickTarget;
     setCellPickTarget(null);
     setExtraCellFiles((prev) => ({ ...prev, [idx]: file }));
 
-    // The image source for this cell changed — any previous crop result or
-    // "skip/use original" flag no longer applies to the new file.
     setCroppedPreviews((prev) => {
       if (!(idx in prev)) return prev;
       URL.revokeObjectURL(prev[idx]);
@@ -1357,7 +1576,6 @@ function EditPanel({ mode, pickedData, gridSize, setGridSize, onSave, saving }) 
       return next;
     });
 
-    // Jump cropper to this cell immediately and force the crop UI open.
     setCropIndex(idx);
     setRecropIndex(idx);
     cropperApiRef.current = null;
@@ -1434,333 +1652,386 @@ function EditPanel({ mode, pickedData, gridSize, setGridSize, onSave, saving }) 
   const canSave    = (mode === "crop" && cropperReady) || splitReady || allCropped;
 
   return (
-    <div style={{ display: "flex", gap: 0, alignItems: "flex-start" }}>
+    <FadeIn>
+      <div style={{ display: "flex", gap: 0, alignItems: "flex-start" }}>
 
-      {/* ── Canvas area ── */}
-      <div style={{ flex: 1, minWidth: 0, paddingRight: 20 }}>
+        {/* ── Canvas area ── */}
+        <div style={{ flex: 1, minWidth: 0, paddingRight: 20 }}>
 
-        {mode === "crop" && singleUrl && (
-          <>
-            <CropCanvas imageUrl={singleUrl} lockedRatio={currentLockedRatio}
-              onReady={(api) => { cropperApiRef.current = api; }}
-              onReadyChange={setCropperReady} onError={() => setLoadError(true)} />
-            {loadError && <ErrorBanner msg="This image couldn't be loaded. Go back and choose a different one." />}
-          </>
-        )}
-
-        {mode === "split" && splitSubStep === "crop" && singleUrl && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <StepBadge step="1" label="Adjust the crop frame, then confirm." />
-            <CropCanvas imageUrl={singleUrl} lockedRatio={currentLockedRatio}
-              onReady={(api) => { cropperApiRef.current = api; }}
-              onReadyChange={setCropperReady} onError={() => setLoadError(true)} />
-            {loadError && <ErrorBanner msg="This image couldn't be loaded. Go back and choose a different one." />}
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <DarkBtn disabled={!cropperReady} onClick={handleSplitCropConfirm} accent>
-                {cropperReady ? <><span>Confirm Crop</span><IcoArrowRight size={13} stroke="#000" /></> : "Loading…"}
-              </DarkBtn>
-            </div>
-          </div>
-        )}
-
-        {mode === "split" && splitSubStep === "preview" && splitPreviewUrl && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <DarkBtn onClick={() => { setSplitSubStep("crop"); setSplitCroppedBlob(null); cropperApiRef.current = null; setCropperReady(false); }}>
-                <IcoArrowLeft size={13} /><span>Re-crop</span>
-              </DarkBtn>
-              <StepBadge step="2" label="Choose grid size, then save." />
-            </div>
-            <SplitTilePreview croppedBlobUrl={splitPreviewUrl} gridSize={gridSize} />
-          </div>
-        )}
-
-        {mode === "collage" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {(!allCropped || recropIndex !== null) && currentCollageSrc && (
-              <div>
-                <div style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  fontSize: 12, color: C.textSecondary, marginBottom: 8,
-                  padding: "7px 12px", background: C.cardElevated,
-                  borderRadius: 6, border: `1px solid ${C.border}`,
-                }}>
-                  {recropIndex !== null
-                    ? <><IcoRefresh size={12} stroke={C.accentSecond} /><span>Re-cropping image {cropIndex + 1} of {collageImages.length}</span></>
-                    : cropIndex > 0 && lockedDims
-                      ? <><IcoLock size={12} stroke={C.accentSecond} /><span>Image {cropIndex + 1} of {collageImages.length} — locked to {lockedDims.width} × {lockedDims.height} px</span></>
-                      : <><IcoCrop size={12} stroke={C.accent} /><span>Cropping image {cropIndex + 1} of {collageImages.length} — set ratio in the panel</span></>}
-                </div>
-                <CropCanvas imageUrl={currentCollageSrc}
-                  lockedRatio={cropIndex === 0 ? currentLockedRatio : (lockedDims ? lockedDims.width / lockedDims.height : NaN)}
+          {mode === "crop" && singleUrl && (
+            <FadeIn>
+              <>
+                <CropCanvas imageUrl={singleUrl} lockedRatio={currentLockedRatio}
                   onReady={(api) => { cropperApiRef.current = api; }}
                   onReadyChange={setCropperReady} onError={() => setLoadError(true)} />
+                {loadError && <ErrorBanner msg="This image couldn't be loaded. Go back and choose a different one." />}
+              </>
+            </FadeIn>
+          )}
 
-                {loadError ? (
-                  <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
-                    <ErrorBanner msg="This image couldn't be loaded. You can skip it — the original will be used for this cell." />
-                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                      <DarkBtn accent onClick={handleSkipCell}>
-                        <IcoSkip size={13} stroke="#000" /><span>Skip &amp; Use Original</span>
-                      </DarkBtn>
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end", gap: 8 }}>
-                    {cropIndex === 0 && <DarkBtn disabled={!cropperReady} onClick={handleUseOriginal}>Use Original</DarkBtn>}
-                    <DarkBtn accent disabled={!cropperReady} onClick={handleCollageCrop}>
-                      {!cropperReady ? "Loading…"
-                        : recropIndex !== null ? <><IcoCheck size={13} stroke="#000" /><span>Apply Crop</span></>
-                        : cropIndex < collageImages.length - 1 ? <><span>Apply Crop &amp; Next</span><IcoArrowRight size={13} stroke="#000" /></>
-                        : <><IcoCheck size={13} stroke="#000" /><span>Apply Crop &amp; Finish</span></>}
-                    </DarkBtn>
-                  </div>
-                )}
+          {mode === "split" && splitSubStep === "crop" && singleUrl && (
+            <FadeIn>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <StepBadge step="1" label="Adjust the crop frame, then confirm." />
+                <CropCanvas imageUrl={singleUrl} lockedRatio={currentLockedRatio}
+                  onReady={(api) => { cropperApiRef.current = api; }}
+                  onReadyChange={setCropperReady} onError={() => setLoadError(true)} />
+                {loadError && <ErrorBanner msg="This image couldn't be loaded. Go back and choose a different one." />}
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <DarkBtn disabled={!cropperReady} onClick={handleSplitCropConfirm} accent>
+                    {cropperReady ? <><span>Confirm Crop</span><IcoArrowRight size={13} stroke="#000" /></> : <><LiquidSpinner size={12} color="#000" /><span>Loading…</span></>}
+                  </DarkBtn>
+                </div>
               </div>
-            )}
+            </FadeIn>
+          )}
 
-           {/* Hidden per-cell file input — max 9 total cells */}
-            <input
-              ref={cellFileInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              style={{ display: "none" }}
-              onChange={handleCellFileChange}
-            />
+          {mode === "split" && splitSubStep === "preview" && splitPreviewUrl && (
+            <FadeIn>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <DarkBtn onClick={() => { setSplitSubStep("crop"); setSplitCroppedBlob(null); cropperApiRef.current = null; setCropperReady(false); }}>
+                    <IcoArrowLeft size={13} /><span>Re-crop</span>
+                  </DarkBtn>
+                  <StepBadge step="2" label="Choose grid size, then save." />
+                </div>
+                <SplitTilePreview croppedBlobUrl={splitPreviewUrl} gridSize={gridSize} />
+              </div>
+            </FadeIn>
+          )}
 
-            {/* Collage thumbnail grid — white gap = white divider */}
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: `repeat(${cols}, 1fr)`,
-              gap: TILE_GAP,
-              borderRadius: 8, overflow: "hidden",
-              background: "#ffffff",
-            }}>
-              {Array.from({ length: cellCount }).map((_, i) => {
-                const preview    = croppedPreviews[i];
-                const img        = collageImages[i];
-                const isLibI     = img && ("image" in img);
-                const fallback   = img
-                  ? (img instanceof File
-                      ? null                          // uploaded File — no stable URL here
-                      : (img._objectUrl ?? (isLibI ? img.image.url : null)))
-                  : null;
-                const src        = preview || fallback;
-                const hasImage   = !!img;
-                const aspect     = lockedDims ? `${lockedDims.width} / ${lockedDims.height}` : "1";
-                const isReCrop   = croppedPreviews[i] !== undefined || !!skippedCells[i];
-                const isActive   = cropIndex === i && (!allCropped || recropIndex !== null);
-
-                return (
-                  <div key={i}
-                    style={{
-                      aspectRatio: aspect, background: C.cardElevated,
-                      position: "relative",
-                      outline: isActive ? `2px solid ${C.accentSecond}` : "none",
+          {mode === "collage" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {(!allCropped || recropIndex !== null) && currentCollageSrc && (
+                <FadeIn>
+                  <div>
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: 6,
+                      fontSize: 12, color: C.textSecondary, marginBottom: 8,
+                      padding: "7px 12px", background: C.cardElevated,
+                      borderRadius: 6, border: `1px solid ${C.border}`,
                     }}>
+                      {recropIndex !== null
+                        ? <><IcoRefresh size={12} stroke={C.accentSecond} /><span>Re-cropping image {cropIndex + 1} of {collageImages.length}</span></>
+                        : cropIndex > 0 && lockedDims
+                          ? <><IcoLock size={12} stroke={C.accentSecond} /><span>Image {cropIndex + 1} of {collageImages.length} — locked to {lockedDims.width} × {lockedDims.height} px</span></>
+                          : <><IcoCrop size={12} stroke={C.accent} /><span>Cropping image {cropIndex + 1} of {collageImages.length} — set ratio in the panel</span></>}
+                    </div>
+                    <CropCanvas imageUrl={currentCollageSrc}
+                      lockedRatio={cropIndex === 0 ? currentLockedRatio : (lockedDims ? lockedDims.width / lockedDims.height : NaN)}
+                      onReady={(api) => { cropperApiRef.current = api; }}
+                      onReadyChange={setCropperReady} onError={() => setLoadError(true)} />
 
-                    {src ? (
-                      /* ── Cell has a preview or library thumbnail ── */
-                      <>
-                        <img src={src} alt=""
-                          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-
-                        {/* Status badge */}
-                        {preview && (
-                          <div style={{ position: "absolute", top: 3, right: 3, background: C.success, borderRadius: "50%", width: 16, height: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                            <IcoCheck size={8} stroke="#000" strokeWidth={3} />
-                          </div>
-                        )}
-                        {!preview && skippedCells[i] && (
-                          <div title="Using original image" style={{ position: "absolute", top: 3, right: 3, background: C.muted, borderRadius: "50%", width: 16, height: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                            <IcoRefresh size={8} stroke="#fff" />
-                          </div>
-                        )}
-
-                        {/* Re-crop / re-pick overlay on hover */}
-                        <div
-                          role="button" tabIndex={0}
-                          onClick={() => isReCrop ? handleSelectCollageCell(i, true) : undefined}
-                          onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && isReCrop) { e.preventDefault(); handleSelectCollageCell(i, true); } }}
-                          title={isReCrop ? "Click to re-crop" : undefined}
-                          style={{
-                            position: "absolute", inset: 0,
-                            display: "flex", alignItems: "flex-end", justifyContent: "flex-start",
-                            padding: 4, gap: 3,
-                            background: "rgba(0,0,0,0)",
-                            cursor: isReCrop ? "pointer" : "default",
-                            transition: "background 0.15s",
-                          }}
-                          onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(0,0,0,0.45)"; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(0,0,0,0)"; }}
-                        >
-                          {/* Re-pick button shown on hover */}
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); handlePickForCell(i); }}
-                            title="Replace image"
-                            style={{
-                              display: "none",   // shown via parent hover via CSS below
-                              padding: "3px 6px", borderRadius: 4,
-                              background: "rgba(0,0,0,0.7)", border: "none",
-                              color: "#fff", fontSize: 9, cursor: "pointer",
-                            }}
-                            className="cell-repick-btn"
-                          >
-                            <IcoUpload size={9} stroke="#fff" />
-                          </button>
+                    {loadError ? (
+                      <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8, animation: "fadeSlideUp 0.3s ease both" }}>
+                        <ErrorBanner msg="This image couldn't be loaded. You can skip it — the original will be used for this cell." />
+                        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                          <DarkBtn accent onClick={handleSkipCell}>
+                            <IcoSkip size={13} stroke="#000" /><span>Skip &amp; Use Original</span>
+                          </DarkBtn>
                         </div>
-                      </>
-                    ) : hasImage && img instanceof File ? (
-                      /* ── Uploaded File with no preview yet — show filename ── */
-                      <div style={{
-                        width: "100%", height: "100%",
-                        display: "flex", flexDirection: "column",
-                        alignItems: "center", justifyContent: "center",
-                        gap: 4, padding: 4,
-                        fontSize: 9, color: C.textSecondary, textAlign: "center",
-                        cursor: "pointer",
-                      }}
-                        role="button" tabIndex={0}
-                        onClick={() => handlePickForCell(i)}
-                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handlePickForCell(i); } }}
-                        title="Click to change image"
-                      >
-                        <IcoImage size={18} stroke={C.accent} />
-                        <span style={{ wordBreak: "break-all", lineHeight: 1.3 }}>{img.name}</span>
                       </div>
                     ) : (
-                      /* ── Empty cell — show Add Image button ── */
-                      <button
-                        type="button"
-                        onClick={() => handlePickForCell(i)}
-                        style={{
-                          width: "100%", height: "100%", minHeight: 64,
-                          display: "flex", flexDirection: "column",
-                          alignItems: "center", justifyContent: "center", gap: 5,
-                          background: "transparent", border: "none", cursor: "pointer",
-                          color: C.muted,
-                        }}
-                        title={`Add image for cell ${i + 1}`}
-                      >
-                        <IcoUpload size={18} stroke={C.accentSecond} />
-                        <span style={{ fontSize: 9, color: C.accentSecond, fontWeight: 600 }}>
-                          Add Image
-                        </span>
-                        <span style={{ fontSize: 8, color: C.muted }}>Cell {i + 1}</span>
-                      </button>
+                      <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                        {cropIndex === 0 && (
+                          <DarkBtn disabled={!cropperReady} onClick={handleUseOriginal}>
+                            {!cropperReady ? <><LiquidSpinner size={12} color={C.muted} /><span>Loading…</span></> : "Use Original"}
+                          </DarkBtn>
+                        )}
+                        <DarkBtn accent disabled={!cropperReady} onClick={handleCollageCrop}>
+                          {!cropperReady
+                            ? <><LiquidSpinner size={12} color="#000" /><span>Loading…</span></>
+                            : recropIndex !== null ? <><IcoCheck size={13} stroke="#000" /><span>Apply Crop</span></>
+                            : cropIndex < collageImages.length - 1 ? <><span>Apply Crop &amp; Next</span><IcoArrowRight size={13} stroke="#000" /></>
+                            : <><IcoCheck size={13} stroke="#000" /><span>Apply Crop &amp; Finish</span></>}
+                        </DarkBtn>
+                      </div>
                     )}
                   </div>
-                );
-              })}
-            </div>
-            {/* Inline CSS to show the repick button on cell hover */}
-            <style>{`
-              div:hover > .cell-repick-btn { display: inline-flex !important; }
-            `}</style>
-           {(() => {
-              const missingCount = collageImages.filter((img) => img === null).length;
-              return missingCount > 0 ? (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", background: "rgba(245,166,35,0.08)", borderRadius: 6, fontSize: 12, color: C.warning, border: `1px solid rgba(245,166,35,0.2)` }}>
-                  <IcoWarn size={14} stroke={C.warning} />
-                  {missingCount} cell{missingCount > 1 ? "s" : ""} still need an image — click <strong>Add Image</strong> on each empty cell.
-                </div>
-              ) : null;
-            })()}
-          </div>
-        )}
-      </div>
+                </FadeIn>
+              )}
 
-      {/* ── Inspector panel ── */}
-      <div style={{
-        width: 220, flexShrink: 0,
-        background: C.card, borderRadius: 10,
-        border: `1px solid ${C.border}`,
-        display: "flex", flexDirection: "column",
-        position: "sticky", top: 16, overflow: "hidden",
-      }}>
-        <div style={{ padding: "10px 14px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 6 }}>
-          <IcoGrid size={12} stroke={C.muted} />
-          <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" }}>Inspector</span>
+              {/* Hidden per-cell file input */}
+              <input
+                ref={cellFileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                style={{ display: "none" }}
+                onChange={handleCellFileChange}
+              />
+
+              {/* Collage thumbnail grid */}
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: `repeat(${cols}, 1fr)`,
+                gap: TILE_GAP,
+                borderRadius: 8, overflow: "hidden",
+                background: "#ffffff",
+              }}>
+                {Array.from({ length: cellCount }).map((_, i) => {
+                  const preview    = croppedPreviews[i];
+                  const img        = collageImages[i];
+                  const isLibI     = img && ("image" in img);
+                  const fallback   = img
+                    ? (img instanceof File
+                        ? null
+                        : (img._objectUrl ?? (isLibI ? img.image.url : null)))
+                    : null;
+                  const src        = preview || fallback;
+                  const hasImage   = !!img;
+                  const aspect     = lockedDims ? `${lockedDims.width} / ${lockedDims.height}` : "1";
+                  const isReCrop   = croppedPreviews[i] !== undefined || !!skippedCells[i];
+                  const isActive   = cropIndex === i && (!allCropped || recropIndex !== null);
+                  const justCropped = justCroppedCell === i;
+
+                  return (
+                    <div key={i}
+                      style={{
+                        aspectRatio: aspect, background: C.cardElevated,
+                        position: "relative",
+                        outline: isActive ? `2px solid ${C.accentSecond}` : "none",
+                        transition: "outline 0.2s ease",
+                      }}>
+
+                      {src ? (
+                        <>
+                          <img src={src} alt=""
+                            style={{
+                              width: "100%", height: "100%", objectFit: "cover", display: "block",
+                              transition: "opacity 0.35s ease",
+                            }} />
+
+                          {/* Success badge */}
+                          {preview && (
+                            <div style={{
+                              position: "absolute", top: 3, right: 3,
+                              background: C.success, borderRadius: "50%",
+                              width: 16, height: 16,
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              animation: justCropped ? "popIn 0.35s cubic-bezier(0.34,1.56,0.64,1) both" : "none",
+                            }}>
+                              <IcoCheck size={8} stroke="#000" strokeWidth={3} />
+                            </div>
+                          )}
+                          {!preview && skippedCells[i] && (
+                            <div title="Using original image" style={{
+                              position: "absolute", top: 3, right: 3,
+                              background: C.muted, borderRadius: "50%",
+                              width: 16, height: 16,
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                            }}>
+                              <IcoRefresh size={8} stroke="#fff" />
+                            </div>
+                          )}
+
+                          {/* Re-crop / re-pick overlay on hover */}
+                          <div
+                            role="button" tabIndex={0}
+                            onClick={() => isReCrop ? handleSelectCollageCell(i, true) : undefined}
+                            onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && isReCrop) { e.preventDefault(); handleSelectCollageCell(i, true); } }}
+                            title={isReCrop ? "Click to re-crop" : undefined}
+                            style={{
+                              position: "absolute", inset: 0,
+                              display: "flex", alignItems: "flex-end", justifyContent: "flex-start",
+                              padding: 4, gap: 3,
+                              background: "rgba(0,0,0,0)",
+                              cursor: isReCrop ? "pointer" : "default",
+                              transition: "background 0.2s ease",
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(0,0,0,0.45)"; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(0,0,0,0)"; }}
+                          >
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); handlePickForCell(i); }}
+                              title="Replace image"
+                              style={{
+                                display: "none",
+                                padding: "3px 6px", borderRadius: 4,
+                                background: "rgba(0,0,0,0.7)", border: "none",
+                                color: "#fff", fontSize: 9, cursor: "pointer",
+                                transition: "transform 0.15s ease",
+                              }}
+                              className="cell-repick-btn"
+                            >
+                              <IcoUpload size={9} stroke="#fff" />
+                            </button>
+                          </div>
+                        </>
+                      ) : hasImage && img instanceof File ? (
+                        <div style={{
+                          width: "100%", height: "100%",
+                          display: "flex", flexDirection: "column",
+                          alignItems: "center", justifyContent: "center",
+                          gap: 4, padding: 4,
+                          fontSize: 9, color: C.textSecondary, textAlign: "center",
+                          cursor: "pointer",
+                          transition: "background 0.2s ease",
+                        }}
+                          role="button" tabIndex={0}
+                          onClick={() => handlePickForCell(i)}
+                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handlePickForCell(i); } }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                          title="Click to change image"
+                        >
+                          <IcoImage size={18} stroke={C.accent} />
+                          <span style={{ wordBreak: "break-all", lineHeight: 1.3 }}>{img.name}</span>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handlePickForCell(i)}
+                          style={{
+                            width: "100%", height: "100%", minHeight: 64,
+                            display: "flex", flexDirection: "column",
+                            alignItems: "center", justifyContent: "center", gap: 5,
+                            background: "transparent", border: "none", cursor: "pointer",
+                            color: C.muted,
+                            transition: "background 0.2s ease, transform 0.2s ease",
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(90,200,250,0.05)"; e.currentTarget.style.transform = "scale(1.04)"; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.transform = "scale(1)"; }}
+                          title={`Add image for cell ${i + 1}`}
+                        >
+                          <IcoUpload size={18} stroke={C.accentSecond} />
+                          <span style={{ fontSize: 9, color: C.accentSecond, fontWeight: 600 }}>
+                            Add Image
+                          </span>
+                          <span style={{ fontSize: 8, color: C.muted }}>Cell {i + 1}</span>
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <style>{`
+                div:hover > .cell-repick-btn { display: inline-flex !important; }
+              `}</style>
+
+              {(() => {
+                const missingCount = collageImages.filter((img) => img === null).length;
+                return missingCount > 0 ? (
+                  <div style={{
+                    display: "flex", alignItems: "center", gap: 6,
+                    padding: "8px 12px",
+                    background: "rgba(245,166,35,0.08)", borderRadius: 6,
+                    fontSize: 12, color: C.warning,
+                    border: `1px solid rgba(245,166,35,0.2)`,
+                    animation: "fadeSlideUp 0.3s ease both",
+                  }}>
+                    <IcoWarn size={14} stroke={C.warning} />
+                    {missingCount} cell{missingCount > 1 ? "s" : ""} still need an image — click <strong>Add Image</strong> on each empty cell.
+                  </div>
+                ) : null;
+              })()}
+            </div>
+          )}
         </div>
 
-        <div style={{ padding: "14px", display: "flex", flexDirection: "column", gap: 16 }}>
-          {(mode === "crop"
-            || (mode === "split" && splitSubStep === "crop")
-            || (mode === "collage" && (!allCropped || recropIndex !== null))) && (
-            <CropToolPanel
-              cropperApiRef={cropperApiRef}
-              activeTool={activeTool} setActiveTool={setActiveTool}
-              customW={customW} setCustomW={setCustomW}
-              customH={customH} setCustomH={setCustomH}
-              locked={mode === "collage" && cropIndex > 0}
-              lockedDims={lockedDims}
-              showReset={mode === "crop" || (mode === "split" && splitSubStep === "crop")}
-              disabled={!cropperReady}
-            />
-          )}
+        {/* ── Inspector panel ── */}
+        <div style={{
+          width: 220, flexShrink: 0,
+          background: C.card, borderRadius: 10,
+          border: `1px solid ${C.border}`,
+          display: "flex", flexDirection: "column",
+          position: "sticky", top: 16, overflow: "hidden",
+        }}>
+          <div style={{ padding: "10px 14px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 6 }}>
+            <IcoGrid size={12} stroke={C.muted} />
+            <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, letterSpacing: "0.08em", textTransform: "uppercase" }}>Inspector</span>
+          </div>
 
-          {(splitReady || mode === "collage") && (
-            <GridSizeSelector gridSize={gridSize} setGridSize={setGridSize} mode={mode} />
-          )}
+          <div style={{ padding: "14px", display: "flex", flexDirection: "column", gap: 16 }}>
+            {(mode === "crop"
+              || (mode === "split" && splitSubStep === "crop")
+              || (mode === "collage" && (!allCropped || recropIndex !== null))) && (
+              <CropToolPanel
+                cropperApiRef={cropperApiRef}
+                activeTool={activeTool} setActiveTool={setActiveTool}
+                customW={customW} setCustomW={setCustomW}
+                customH={customH} setCustomH={setCustomH}
+                locked={mode === "collage" && cropIndex > 0}
+                lockedDims={lockedDims}
+                showReset={mode === "crop" || (mode === "split" && splitSubStep === "crop")}
+                disabled={!cropperReady}
+              />
+            )}
 
-          {mode === "split" && splitReady && (
-            <SplitTileModeToggle value={splitTileMode} onChange={setSplitTileMode} />
-          )}
+            {(splitReady || mode === "collage") && (
+              <GridSizeSelector gridSize={gridSize} setGridSize={setGridSize} mode={mode} />
+            )}
 
-          <div style={divider} />
+            {mode === "split" && splitReady && (
+              <SplitTileModeToggle value={splitTileMode} onChange={setSplitTileMode} />
+            )}
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <div style={panelLabel}>Save to Shopify Files</div>
+            <div style={divider} />
 
-            <button type="button" disabled={saving || !canSave} onClick={() => handleSave("new")}
-              style={{
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                padding: "10px 12px", borderRadius: 7, fontSize: 12, fontWeight: 700,
-                border: "none", cursor: saving || !canSave ? "default" : "pointer",
-                background: saving || !canSave ? C.cardElevated : C.accent,
-                color: saving || !canSave ? C.muted : "#000",
-                opacity: saving ? 0.7 : 1,
-              }}>
-              <IcoSave size={13} stroke={saving || !canSave ? C.muted : "#000"} />
-              {saving ? "Saving…" : mode === "crop" && !cropperReady ? "Loading…" : "Save as New Image"}
-            </button>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={panelLabel}>Save to Shopify Files</div>
 
-            {canReplace && (
-              <button type="button" disabled={saving || !canSave} onClick={() => handleSave("replace")}
+              <button type="button" disabled={saving || !canSave} onClick={() => handleSave("new")}
                 style={{
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                   padding: "10px 12px", borderRadius: 7, fontSize: 12, fontWeight: 700,
-                  border: `1px solid ${saving || !canSave ? C.border : C.borderStrong}`,
-                  cursor: saving || !canSave ? "default" : "pointer",
-                  background: "transparent",
-                  color: saving || !canSave ? C.muted : C.textPrimary,
+                  border: "none", cursor: saving || !canSave ? "default" : "pointer",
+                  background: saving || !canSave ? C.cardElevated : C.accent,
+                  color: saving || !canSave ? C.muted : "#000",
                   opacity: saving ? 0.7 : 1,
-                }}>
-                <IcoRefresh size={13} />
-                {saving ? "Saving…" : "Replace Original"}
+                  transform: canSave && !saving ? "scale(1)" : "scale(0.97)",
+                  boxShadow: canSave && !saving ? `0 4px 16px rgba(0,200,117,0.2)` : "none",
+                  transition: "background 0.3s cubic-bezier(0.4,0,0.2,1), color 0.3s ease, transform 0.2s cubic-bezier(0.34,1.2,0.64,1), box-shadow 0.3s ease, opacity 0.2s ease",
+                }}
+                onMouseEnter={(e) => { if (canSave && !saving) e.currentTarget.style.transform = "scale(1.03)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = canSave && !saving ? "scale(1)" : "scale(0.97)"; }}>
+                {saving
+                  ? <><LiquidSpinner size={12} color="#000" /><span>Saving…</span></>
+                  : mode === "crop" && !cropperReady
+                    ? <><LiquidSpinner size={12} color={C.muted} /><span>Loading…</span></>
+                    : <><IcoSave size={13} stroke={canSave ? "#000" : C.muted} /><span>Save as New Image</span></>}
               </button>
-            )}
 
-            {!canReplace && mode !== "collage" && (
-              <p style={{ fontSize: 10, color: C.muted, margin: 0, lineHeight: 1.5 }}>
-                Replace is available when the source is from your store library.
-              </p>
-            )}
-            {mode === "split" && splitSubStep === "crop" && (
-              <p style={{ fontSize: 10, color: C.muted, margin: 0, lineHeight: 1.5 }}>
-                Confirm your crop first, then choose the grid size.
-              </p>
-            )}
-            {mode === "collage" && !allCropped && collageImages.length > 0 && (
-              <p style={{ fontSize: 10, color: C.muted, margin: 0, lineHeight: 1.5 }}>
-                Apply crop for all {cellCount} images to enable saving.
-              </p>
-            )}
+              {canReplace && (
+                <button type="button" disabled={saving || !canSave} onClick={() => handleSave("replace")}
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                    padding: "10px 12px", borderRadius: 7, fontSize: 12, fontWeight: 700,
+                    border: `1px solid ${saving || !canSave ? C.border : C.borderStrong}`,
+                    cursor: saving || !canSave ? "default" : "pointer",
+                    background: "transparent",
+                    color: saving || !canSave ? C.muted : C.textPrimary,
+                    opacity: saving ? 0.7 : 1,
+                    transition: "border-color 0.2s ease, color 0.2s ease, transform 0.15s ease",
+                  }}
+                  onMouseEnter={(e) => { if (!saving && canSave) { e.currentTarget.style.borderColor = C.accent; e.currentTarget.style.transform = "scale(1.02)"; } }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = saving || !canSave ? C.border : C.borderStrong; e.currentTarget.style.transform = "scale(1)"; }}>
+                  <IcoRefresh size={13} />
+                  {saving ? "Saving…" : "Replace Original"}
+                </button>
+              )}
+
+              {!canReplace && mode !== "collage" && (
+                <p style={{ fontSize: 10, color: C.muted, margin: 0, lineHeight: 1.5 }}>
+                  Replace is available when the source is from your store library.
+                </p>
+              )}
+              {mode === "split" && splitSubStep === "crop" && (
+                <p style={{ fontSize: 10, color: C.muted, margin: 0, lineHeight: 1.5 }}>
+                  Confirm your crop first, then choose the grid size.
+                </p>
+              )}
+              {mode === "collage" && !allCropped && collageImages.length > 0 && (
+                <p style={{ fontSize: 10, color: C.muted, margin: 0, lineHeight: 1.5 }}>
+                  Apply crop for all {cellCount} images to enable saving.
+                </p>
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </FadeIn>
   );
 }
 
@@ -1779,7 +2050,11 @@ function DarkBtn({ children, onClick, disabled, accent }) {
         background: disabled ? C.cardElevated : accent ? C.accent : C.cardElevated,
         color: disabled ? C.muted : accent ? "#000" : C.textPrimary,
         opacity: disabled ? 0.6 : 1,
-      }}>
+        transition: "background 0.25s cubic-bezier(0.4,0,0.2,1), color 0.25s ease, opacity 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease",
+        boxShadow: !disabled && accent ? `0 4px 14px rgba(0,200,117,0.2)` : "none",
+      }}
+      onMouseEnter={(e) => { if (!disabled) e.currentTarget.style.transform = "scale(1.03)"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; }}>
       {children}
     </button>
   );
@@ -1792,6 +2067,7 @@ function StepBadge({ step, label }) {
         display: "inline-flex", alignItems: "center", justifyContent: "center",
         width: 18, height: 18, borderRadius: "50%",
         background: C.accent, color: "#000", fontSize: 9, fontWeight: 800,
+        animation: "popIn 0.3s cubic-bezier(0.34,1.56,0.64,1) both",
       }}>{step}</span>
       <span>{label}</span>
     </div>
@@ -1805,6 +2081,7 @@ function ErrorBanner({ msg }) {
       padding: "10px 12px", marginTop: 8,
       background: "rgba(255,90,95,0.08)", border: `1px solid rgba(255,90,95,0.25)`,
       borderRadius: 6, fontSize: 12,
+      animation: "fadeSlideUp 0.3s ease both",
     }}>
       <IcoWarn size={14} stroke={C.danger} style={{ flexShrink: 0, marginTop: 1 }} />
       <span style={{ color: C.textSecondary }}>{msg}</span>
@@ -1814,12 +2091,6 @@ function ErrorBanner({ msg }) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // EditorPage — root component
-// The white background comes from Shopify's s-section Shadow DOM which CSS
-// selectors on the host element cannot pierce. We solve it by:
-//   1. Rendering s-page / s-section with no padding/margin/bg of their own
-//   2. Immediately inside s-section, placing a full-bleed dark <div> that
-//      uses negative margins to neutralise whatever padding s-section injects,
-//      then re-applies our own padding inside it.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function EditorPage() {
@@ -1847,8 +2118,8 @@ export default function EditorPage() {
     }
   }, [fetcher.data]);
 
-  const handlePicked      = (data)    => { setPicked(data); setStep("edit"); };
-  const showWarningToast  = useCallback((message) => {
+  const handlePicked     = (data) => { setPicked(data); setStep("edit"); };
+  const showWarningToast = useCallback((message) => {
     setToast({ message, tone: "warning" });
     setTimeout(() => setToast(null), 5000);
   }, []);
@@ -1891,24 +2162,55 @@ export default function EditorPage() {
   return (
     <s-page heading="Image Editor">
 
-      {/*
-        Global style block:
-        • Dark spin keyframe
-        • Force dark bg on every ancestor we can reach from here
-        • Cropper.js dark theme — white divider lines inside the crop box
-      */}
       <style>{`
         @keyframes editorSpin { to { transform: rotate(360deg); } }
+        @keyframes liquidSpin {
+          0%   { transform: rotate(0deg); }
+          70%  { transform: rotate(300deg); }
+          100% { transform: rotate(360deg); }
+        }
+        @keyframes liquidPulse {
+          0%, 100% { opacity: 0.12; transform: scale(0.85); }
+          50%       { opacity: 0.35; transform: scale(1.1); }
+        }
+        @keyframes liquidBounce {
+          0%, 80%, 100% { transform: translateY(0);    opacity: 0.5; }
+          40%            { transform: translateY(-4px); opacity: 1;   }
+        }
+        @keyframes fadeSlideUp {
+          from { opacity: 0; transform: translateY(6px); }
+          to   { opacity: 1; transform: translateY(0);   }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+        @keyframes popIn {
+          from { opacity: 0; transform: scale(0.5); }
+          to   { opacity: 1; transform: scale(1);   }
+        }
+        @keyframes tileReveal {
+          from { opacity: 0; transform: scale(0.88); }
+          to   { opacity: 1; transform: scale(1);    }
+        }
+        @keyframes shimmer {
+          0%   { background-position: -200% 0; }
+          100% { background-position:  200% 0; }
+        }
+        @keyframes toastSlide {
+          from { opacity: 0; transform: translateX(-50%) translateY(-12px) scale(0.95); }
+          to   { opacity: 1; transform: translateX(-50%) translateY(0)     scale(1);    }
+        }
+
         * { box-sizing: border-box; }
         input[type=number] { -moz-appearance: textfield; }
         input[type=number]::-webkit-outer-spin-button,
         input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
-        /* Best-effort dark bg on outer Shopify chrome */
         html, body { background: ${C.bg} !important; }
         s-page, s-section { color-scheme: dark; }
 
-        /* ── Cropper.js: dark surround + white crop-box lines ── */
+        /* Cropper.js dark theme */
         .cropper-bg    { background-image: none !important; background-color: #0d0d0f !important; }
         .cropper-modal { opacity: 0.78 !important; background: #000 !important; }
         .cropper-line  { background-color: rgba(255,255,255,0.9) !important; }
@@ -1921,15 +2223,21 @@ export default function EditorPage() {
         .cropper-face   { background-color: rgba(255,255,255,0.015) !important; }
       `}</style>
 
+      {/* Saving overlay */}
+      <SavingOverlay visible={saving} />
+
       {/* Toast */}
       {toast && (
         <div style={{
-          position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)",
+          position: "fixed", top: 20, left: "50%",
+          transform: "translateX(-50%)",
           zIndex: 9999,
           background: toastBg[toast.tone], border: `1px solid ${toastBd[toast.tone]}`,
-          color: toastCl[toast.tone], padding: "12px 24px", borderRadius: 8,
-          fontSize: 13, fontWeight: 600, boxShadow: "0 4px 24px rgba(0,0,0,0.5)",
+          color: toastCl[toast.tone], padding: "12px 24px", borderRadius: 10,
+          fontSize: 13, fontWeight: 600, boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
           maxWidth: 480, textAlign: "center", display: "flex", alignItems: "center", gap: 8,
+          backdropFilter: "blur(8px)",
+          animation: "toastSlide 0.4s cubic-bezier(0.34,1.2,0.64,1) both",
         }}>
           {toast.tone === "success" && <IcoCheck size={16} stroke={C.success} strokeWidth={2.5} />}
           {toast.tone === "error"   && <IcoWarn  size={16} stroke={C.danger} />}
@@ -1938,49 +2246,59 @@ export default function EditorPage() {
         </div>
       )}
 
-      {/*
-        The s-section shell can't be made dark via CSS on the host.
-        We therefore render it as a thin wrapper and place a full-bleed
-        dark container INSIDE it. The negative margin trick (-20px on all
-        sides, matching Shopify's typical section padding) bleeds the dark
-        div to the edges of the white card, then re-pads inside.
-        Adjust the -20px values if your theme uses a different padding.
-      */}
       <s-section>
         <div style={{
-          margin: "-20px -20px -20px -20px",   // bleed over s-section white padding
+          margin: "-20px -20px -20px -20px",
           padding: "24px 20px",
           background: C.bgSecondary,
           minHeight: "calc(100vh - 60px)",
           color: C.textPrimary,
         }}>
 
-          {/* Mode tabs */}
-          <div style={{
-            display: "flex", gap: 2,
-            background: C.card, borderRadius: 10, padding: 4,
-            marginBottom: 20, border: `1px solid ${C.border}`,
-            width: "fit-content",
-          }}>
-            {MODE_TABS.map(({ key, Icon, label }) => {
-              const active = mode === key;
-              return (
-                <button key={key} type="button" onClick={() => switchMode(key)} style={{
-                  display: "flex", alignItems: "center", gap: 7,
-                  padding: "8px 18px", fontSize: 12, cursor: "pointer",
-                  fontWeight: active ? 700 : 400,
-                  color:      active ? "#ffffffff" : C.textSecondary,
-                  background: active ? C.accent : "transparent",
-                  border: "none", borderRadius: 7,
-                  transition: "background 0.15s, color 0.15s",
-                }}>
-                  <Icon size={13} stroke={active ? "#ffffffff" : C.textSecondary} />
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-
+       {/* Mode tabs — with sliding active indicator, fully responsive */}
+<div style={{
+  display: "flex", gap: 2,
+  background: C.card, borderRadius: 10, padding: 4,
+  marginBottom: 20, border: `1px solid ${C.border}`,
+  width: "100%", maxWidth: "100%",
+  position: "relative",
+  boxSizing: "border-box",
+  overflow: "hidden",
+}}>
+  {/* Sliding background pill */}
+  <div style={{
+    position: "absolute",
+    top: 4, bottom: 4,
+    left: `calc(${MODE_TABS.findIndex((t) => t.key === mode)} * (100% / ${MODE_TABS.length}) + 4px)`,
+    width: `calc(100% / ${MODE_TABS.length} - 8px / ${MODE_TABS.length})`,
+    background: C.accent, borderRadius: 7,
+    transition: "left 0.35s cubic-bezier(0.4,0,0.2,1)",
+    zIndex: 0,
+  }} />
+  {MODE_TABS.map(({ key, Icon, label }) => {
+    const active = mode === key;
+    return (
+      <button key={key} type="button" onClick={() => switchMode(key)} style={{
+        flex: 1,                      // ← each tab shares space equally
+        minWidth: 0,                  // ← allows shrinking below content width
+        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+        padding: "8px 6px", fontSize: 12, cursor: "pointer",
+        fontWeight: active ? 700 : 400,
+        color: active ? "#000" : C.textSecondary,
+        background: "transparent",
+        border: "none", borderRadius: 7,
+        position: "relative", zIndex: 1,
+        transition: "color 0.28s cubic-bezier(0.4,0,0.2,1)",
+        whiteSpace: "nowrap",         // ← prevent label line-wrapping
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+      }}>
+        <Icon size={13} stroke={active ? "#000" : C.textSecondary} style={{ flexShrink: 0, transition: "stroke 0.28s ease" }} />
+        {label}
+      </button>
+    );
+  })}
+</div>
           {/* Breadcrumb */}
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 20, fontSize: 12 }}>
             <span
@@ -1992,17 +2310,24 @@ export default function EditorPage() {
                 color:  step === "edit" ? C.accentSecond : C.textPrimary,
                 fontWeight: 600,
                 textDecoration: step === "edit" ? "underline" : "none",
+                transition: "color 0.2s ease",
               }}>
               1. Select Image{mode === "collage" ? "s" : ""}
             </span>
             <IcoArrowRight size={11} stroke={C.muted} />
-            <span style={{ color: step === "edit" ? C.textPrimary : C.muted, fontWeight: step === "edit" ? 600 : 400 }}>
+            <span style={{
+              color: step === "edit" ? C.textPrimary : C.muted,
+              fontWeight: step === "edit" ? 600 : 400,
+              transition: "color 0.25s ease, font-weight 0.15s ease",
+            }}>
               2. Edit &amp; Save
             </span>
           </div>
 
           {step === "pick" && (
-            <SourcePicker key={mode} mode={mode} loaderData={loaderData} onConfirm={handlePicked} onWarning={showWarningToast} />
+            <FadeIn key={`pick-${mode}`}>
+              <SourcePicker key={mode} mode={mode} loaderData={loaderData} onConfirm={handlePicked} onWarning={showWarningToast} />
+            </FadeIn>
           )}
 
           {step === "edit" && pickedData && (
