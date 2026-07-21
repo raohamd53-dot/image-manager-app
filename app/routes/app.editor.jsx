@@ -37,7 +37,7 @@ const C = {
   textSecondary: "#d1d7dfff",
   muted:         "#b1b7c0ff",
   success:       "#00c87570",
-  warning:       "#f5a523be",
+  warning:       "#f5a523f1",
   danger:        "#ff5a6094",
 };
 
@@ -880,9 +880,28 @@ function SplitTilePreview({ croppedBlobUrl, gridSize }) {
     ? `${naturalSize.w / cols} / ${naturalSize.h / rows}`
     : "1";
 
+  // Compute a contain-fit box in JS (like object-fit: contain) so the
+  // preview never overflows/clips regardless of the crop's orientation —
+  // CSS aspect-ratio + max-height alone doesn't shrink width to compensate
+  // for a portrait (tall) image, which was clipping rows off 9:16 crops.
+  const PREVIEW_MAX_WIDTH  = 480;
+  const PREVIEW_MAX_HEIGHT = CROP_CANVAS_HEIGHT;
+  const boxDims = (() => {
+    if (!naturalSize) return { width: "100%", height: PREVIEW_MAX_HEIGHT };
+    const aspect = naturalSize.w / naturalSize.h;
+    let width  = PREVIEW_MAX_WIDTH;
+    let height = width / aspect;
+    if (height > PREVIEW_MAX_HEIGHT) {
+      height = PREVIEW_MAX_HEIGHT;
+      width  = height * aspect;
+    }
+    return { width, height };
+  })();
+
   return (
     <div style={{
       display: "flex", flexDirection: "column", gap: 12,
+      alignItems: "center",
       opacity: loaded ? 1 : 0,
       transform: loaded ? "translateY(0)" : "translateY(6px)",
       transition: "opacity 0.4s cubic-bezier(0.4,0,0.2,1), transform 0.4s cubic-bezier(0.34,1.2,0.64,1)",
@@ -894,6 +913,10 @@ function SplitTilePreview({ croppedBlobUrl, gridSize }) {
         borderRadius: 8, overflow: "hidden",
         background: "#ffffff",
         padding: 0,
+        width: boxDims.width,
+        height: boxDims.height,
+        maxWidth: "100%",
+        margin: "0 auto",
       }}>
         {Array.from({ length: cellCount }).map((_, i) => {
           const row  = Math.floor(i / cols);
@@ -1127,9 +1150,9 @@ function SourcePicker({ mode, loaderData, onConfirm, onWarning }) {
 
       <FadeIn>
         <div style={{
-          padding: "10px 14px", background: C.card,
-          borderRadius: 8, fontSize: 13, color: C.warning,
-          border: `1px solid ${C.warning}`,
+          padding: "10px 14px", background: C.cardElevated,
+          borderRadius: 8, fontSize: 13, color: C.accent,
+          border: `1px solid ${C.accent}`,
         }}>
           {MODE_TABS.find((m) => m.key === mode)?.desc}
           {isMulti && ` Select 1–${maxSelect} images. Add images to individual cells in the next step.`}
@@ -1137,7 +1160,7 @@ function SourcePicker({ mode, loaderData, onConfirm, onWarning }) {
       </FadeIn>
 
       {/* Tab switcher with sliding indicator */}
-      <div style={{ display: "flex", gap: 2, background: C.cardElevated, borderRadius: 8, padding: 3, position: "relative" }}>
+      <div style={{ display: "flex", gap: 2, background: C.card, borderRadius: 8, padding: 3, position: "relative" }}>
         <div style={{
           position: "absolute",
           top: 3, bottom: 3,
@@ -1415,7 +1438,7 @@ function SplitTileModeToggle({ value, onChange }) {
                 boxShadow: active ? `0 0 0 3px rgba(0,200,117,0.15)` : "none",
                 transition: "border-color 0.25s cubic-bezier(0.4,0,0.2,1), background 0.25s ease, transform 0.2s cubic-bezier(0.34,1.2,0.64,1), box-shadow 0.25s ease",
               }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: active ? C.accent : C.textSecondary, transition: "color 0.2s ease" }}>{label}</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: active ? C.accent : C.textSecondary, transition: "color 0.3s ease" }}>{label}</span>
               <span style={{ fontSize: 9, color: C.muted }}>{desc}</span>
             </button>
           );
@@ -1480,6 +1503,23 @@ function EditPanel({ mode, pickedData, gridSize, setGridSize, onSave, saving }) 
     () => baseImages.map((base, i) => extraCellFiles[i] ?? base),
     [baseImages, extraCellFiles],
   );
+
+  // Generate preview thumbnails for any raw File images sitting in collage
+  // cells before they've been cropped (e.g. uploaded but not yet its turn
+  // in the crop sequence). Without this, uncropped File-based cells had no
+  // `src` to render and fell back to a filename-only tile whose only click
+  // action re-opened the file picker.
+  const fileThumbs = useMemo(() => {
+    const map = {};
+    collageImages.forEach((img, i) => {
+      if (img instanceof File) map[i] = URL.createObjectURL(img);
+    });
+    return map;
+  }, [collageImages]);
+
+  useEffect(() => {
+    return () => { Object.values(fileThumbs).forEach((u) => URL.revokeObjectURL(u)); };
+  }, [fileThumbs]);
 
   const currentCollageImg   = collageImages[cropIndex] ?? null;
   const isCurrentCollageLib = currentCollageImg !== null && "image" in currentCollageImg;
@@ -1772,15 +1812,22 @@ function EditPanel({ mode, pickedData, gridSize, setGridSize, onSave, saving }) 
                   const preview    = croppedPreviews[i];
                   const img        = collageImages[i];
                   const isLibI     = img && ("image" in img);
+                  // For not-yet-cropped File images, fall back to a generated
+                  // object-URL thumbnail so the cell shows the actual picture
+                  // instead of only a filename.
                   const fallback   = img
                     ? (img instanceof File
-                        ? null
+                        ? (fileThumbs[i] ?? null)
                         : (img._objectUrl ?? (isLibI ? img.image.url : null)))
                     : null;
                   const src        = preview || fallback;
                   const hasImage   = !!img;
                   const aspect     = lockedDims ? `${lockedDims.width} / ${lockedDims.height}` : "1";
-                  const isReCrop   = croppedPreviews[i] !== undefined || !!skippedCells[i];
+                  // Any filled cell — cropped, skipped, or just uploaded and
+                  // still waiting its turn — should be selectable to jump the
+                  // cropper straight to it, rather than only cropped/skipped
+                  // cells being clickable.
+                  const isReCrop   = hasImage;
                   const isActive   = cropIndex === i && (!allCropped || recropIndex !== null);
                   const justCropped = justCroppedCell === i;
 
@@ -1869,11 +1916,11 @@ function EditPanel({ mode, pickedData, gridSize, setGridSize, onSave, saving }) 
                           transition: "background 0.2s ease",
                         }}
                           role="button" tabIndex={0}
-                          onClick={() => handlePickForCell(i)}
-                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handlePickForCell(i); } }}
+                          onClick={() => handleSelectCollageCell(i, true)}
+                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelectCollageCell(i, true); } }}
                           onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
                           onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-                          title="Click to change image"
+                          title="Click to crop this image"
                         >
                           <IcoImage size={18} stroke={C.accent} />
                           <span style={{ wordBreak: "break-all", lineHeight: 1.3 }}>{img.name}</span>
@@ -2309,7 +2356,6 @@ export default function EditorPage() {
                 cursor: step === "edit" ? "pointer" : "default",
                 color:  step === "edit" ? C.accentSecond : C.textPrimary,
                 fontWeight: 600,
-                textDecoration: step === "edit" ? "underline" : "none",
                 transition: "color 0.2s ease",
               }}>
               1. Select Image{mode === "collage" ? "s" : ""}

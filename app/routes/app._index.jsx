@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router";
+import { useNavigate, useNavigation } from "react-router";
 import { useRef, useEffect } from "react";
 import { authenticate } from "../shopify.server";
 import { boundary }     from "@shopify/shopify-app-react-router/server";
@@ -66,9 +66,77 @@ const FEATURES = [
   { label: "Save to Shopify Files", Icon: IconSave },
 ];
 
+// ─────────────────────────────────────────────────────────────────────────────
+// LiquidSpinner — same reusable animated loader orb used in app.editor.jsx
+// ─────────────────────────────────────────────────────────────────────────────
+
+function LiquidSpinner({ size = 24, color = C.accent, label }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+      <div style={{ position: "relative", width: size, height: size }}>
+        {/* Outer ring */}
+        <div style={{
+          position: "absolute", inset: 0, borderRadius: "50%",
+          border: `2px solid rgba(255,255,255,0.08)`,
+          borderTopColor: color,
+          animation: "liquidSpin 0.9s cubic-bezier(0.4,0,0.2,1) infinite",
+        }} />
+        {/* Inner pulse */}
+        <div style={{
+          position: "absolute", inset: "25%", borderRadius: "50%",
+          background: color,
+          opacity: 0.25,
+          animation: "liquidPulse 1.4s ease-in-out infinite",
+        }} />
+      </div>
+      {label && <span style={{ fontSize: 11, color: C.muted, letterSpacing: "0.04em" }}>{label}</span>}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NavigationLoadingOverlay — full-page overlay shown while a route
+// transition (e.g. the editor's loader fetching Shopify Files) is pending
+// ─────────────────────────────────────────────────────────────────────────────
+
+function NavigationLoadingOverlay({ visible }) {
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 8000,
+      background: "rgba(0,0,0,0.6)",
+      backdropFilter: "blur(6px)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      flexDirection: "column", gap: 16,
+      opacity: visible ? 1 : 0,
+      pointerEvents: visible ? "auto" : "none",
+      transition: "opacity 0.35s cubic-bezier(0.4,0,0.2,1)",
+    }}>
+      <div style={{
+        background: C.card, border: `1px solid ${C.border}`,
+        borderRadius: 16, padding: "32px 48px",
+        display: "flex", flexDirection: "column", alignItems: "center", gap: 18,
+        boxShadow: "0 24px 64px rgba(0,0,0,0.6)",
+        transform: visible ? "scale(1) translateY(0)" : "scale(0.94) translateY(8px)",
+        transition: "transform 0.35s cubic-bezier(0.34,1.56,0.64,1)",
+      }}>
+        <LiquidSpinner size={40} color={C.accentSecond} />
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: C.textPrimary, marginBottom: 4 }}>
+            Opening Editor
+          </div>
+          <div style={{ fontSize: 11, color: C.muted }}>Loading your image library…</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Index() {
-  const navigate = useNavigate();
+  const navigate    = useNavigate();
+  const navigation  = useNavigation();
   const editorBtnRef = useRef(null);
+
+  const isNavigating = navigation.state !== "idle";
 
   // <s-button> is a custom element — React 18 does not translate onClick
   // to a real DOM event listener for hyphenated custom elements, so we
@@ -83,6 +151,27 @@ export default function Index() {
 
   return (
     <s-page heading="Image Editor">
+
+      <style>{`
+        @keyframes liquidSpin {
+          0%   { transform: rotate(0deg); }
+          70%  { transform: rotate(300deg); }
+          100% { transform: rotate(360deg); }
+        }
+        @keyframes liquidPulse {
+          0%, 100% { opacity: 0.12; transform: scale(0.85); }
+          50%       { opacity: 0.35; transform: scale(1.1); }
+        }
+        @keyframes fadeSlideUp {
+          from { opacity: 0; transform: translateY(6px); }
+          to   { opacity: 1; transform: translateY(0);   }
+        }
+      `}</style>
+
+      {/* Full-page loading overlay while navigating to the editor
+          (its loader fetches Shopify Files before the route renders) */}
+      <NavigationLoadingOverlay visible={isNavigating} />
+
       <s-section>
         <s-bleed>
           <div style={{
@@ -130,20 +219,25 @@ export default function Index() {
                   custom-element onClick quirk in React 18 */}
               <button
                 onClick={() => navigate("/app/editor")}
+                disabled={isNavigating}
                 style={{
                   display: "inline-flex", alignItems: "center", gap: 10,
                   padding: "14px 32px",
-                  background: C.accent, color: "#000",
+                  background: isNavigating ? C.cardElevated : C.accent,
+                  color: isNavigating ? C.muted : "#000",
                   border: "none", borderRadius: 10,
-                  fontSize: 15, fontWeight: 700, cursor: "pointer",
-                  boxShadow: `0 4px 24px rgba(0,200,117,0.28)`,
-                  transition: "transform 0.12s, box-shadow 0.12s",
+                  fontSize: 15, fontWeight: 700,
+                  cursor: isNavigating ? "default" : "pointer",
+                  boxShadow: isNavigating ? "none" : `0 4px 24px rgba(0,200,117,0.28)`,
+                  opacity: isNavigating ? 0.85 : 1,
+                  transition: "transform 0.12s, box-shadow 0.12s, background 0.2s ease, color 0.2s ease, opacity 0.2s ease",
                 }}
-                onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 6px 32px rgba(0,200,117,0.38)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = `0 4px 24px rgba(0,200,117,0.28)`; }}
+                onMouseEnter={(e) => { if (!isNavigating) { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 6px 32px rgba(0,200,117,0.38)"; } }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = ""; if (!isNavigating) e.currentTarget.style.boxShadow = `0 4px 24px rgba(0,200,117,0.28)`; }}
               >
-                Open Editor
-                <IconArrow width={16} height={16} stroke="#000" />
+                {isNavigating
+                  ? <><LiquidSpinner size={16} color={C.muted} /><span>Opening…</span></>
+                  : <><span>Open Editor</span><IconArrow width={16} height={16} stroke="#000" /></>}
               </button>
             </div>
 
