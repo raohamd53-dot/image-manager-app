@@ -51,7 +51,6 @@ model Shop {
 
   @@index([myshopifyDomain])
 }
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Shop Settings
 // One settings record per shop.

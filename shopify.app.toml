@@ -16,7 +16,7 @@ api_version = "2025-10"
   uri = "/webhooks/app/uninstalled"
 
 [auth]
-redirect_urls = [ "https://example.com/api/auth" ]
+redirect_urls = [ "https://example.com/auth/callback" ]
 
 [build]
 include_config_on_deploy = true

@@ -1766,9 +1766,9 @@ function EditPanel({ mode, pickedData, gridSize, setGridSize, onSave, saving }) 
                       <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8, animation: "fadeSlideUp 0.3s ease both" }}>
                         <ErrorBanner msg="This image couldn't be loaded. You can skip it — the original will be used for this cell." />
                         <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                          <DarkBtn accent onClick={handleSkipCell}>
+                          {/* <DarkBtn accent onClick={handleSkipCell}>
                             <IcoSkip size={13} stroke="#000" /><span>Skip &amp; Use Original</span>
-                          </DarkBtn>
+                          </DarkBtn> */}
                         </div>
                       </div>
                     ) : (
@@ -1896,12 +1896,12 @@ function EditPanel({ mode, pickedData, gridSize, setGridSize, onSave, saving }) 
                                 display: "none",
                                 padding: "3px 6px", borderRadius: 4,
                                 background: "rgba(0,0,0,0.7)", border: "none",
-                                color: "#fff", fontSize: 9, cursor: "pointer",
+                                color: C.accent, fontSize: 9, cursor: "pointer",
                                 transition: "transform 0.15s ease",
                               }}
                               className="cell-repick-btn"
                             >
-                              <IcoUpload size={9} stroke="#fff" />
+                              <IcoUpload size={16} stroke={C.accent} />
                             </button>
                           </div>
                         </>
@@ -2036,7 +2036,7 @@ function EditPanel({ mode, pickedData, gridSize, setGridSize, onSave, saving }) 
                 {saving
                   ? <><LiquidSpinner size={12} color="#000" /><span>Saving…</span></>
                   : mode === "crop" && !cropperReady
-                    ? <><LiquidSpinner size={12} color={C.muted} /><span>Loading…</span></>
+                    ? <><LiquidSpinner size={12} color={C.accent} /><span>Loading…</span></>
                     : <><IcoSave size={13} stroke={canSave ? "#000" : C.muted} /><span>Save as New Image</span></>}
               </button>
 
