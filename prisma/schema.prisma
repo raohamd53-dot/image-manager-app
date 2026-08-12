@@ -1,23 +1,23 @@
-// prisma/schema.prisma
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-// ─── Shopify Session ──────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Shopify Session
 // DO NOT MODIFY — required by @shopify/shopify-app-react-router.
 // Stores the OAuth access token for every installed store.
+// ─────────────────────────────────────────────────────────────────────────────
 
 model Session {
-  id                   String    @id
+  id                   String   @id
   shop                 String
   state                String
-  isOnline             Boolean   @default(false)
+  isOnline             Boolean  @default(false)
   scope                String?
   expires              DateTime?
   accessToken          String
@@ -25,26 +25,49 @@ model Session {
   firstName            String?
   lastName             String?
   email                String?
-  accountOwner         Boolean   @default(false)
+  accountOwner         Boolean  @default(false)
   locale               String?
-  collaborator         Boolean?  @default(false)
-  emailVerified        Boolean?  @default(false)
+  collaborator         Boolean? @default(false)
+  emailVerified        Boolean? @default(false)
   refreshToken         String?
   refreshTokenExpires  DateTime?
 }
 
-// ─── Shop ─────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Shop
 // One row per merchant who installs the app.
-// Created / updated on first admin page load via the loader in app._index.jsx.
+// ─────────────────────────────────────────────────────────────────────────────
 
 model Shop {
-  id               String   @id @default(cuid())
-  myshopifyDomain  String   @unique
-  name             String?
-  email            String?
-  plan             String?
-  installedAt      DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id              String   @id @default(cuid())
+  myshopifyDomain String   @unique
+  name            String?
+  email           String?
+  plan            String?
+  installedAt     DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  settings        ShopSettings?
 
   @@index([myshopifyDomain])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shop Settings
+// One settings record per shop.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ShopSettings {
+  id           String   @id @default(cuid())
+  jpegQuality  Int      @default(92)
+  maxExportPx  Int      @default(4096)
+  collageGapPx Int      @default(4)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  shopId       String   @unique
+  shop         Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([shopId])
 }
