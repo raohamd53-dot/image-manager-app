@@ -1,3 +1,8 @@
+/* eslint-disable react/prop-types */
+// Prop-types intentionally disabled — these are private, file-local
+// components consumed only within this route file, not a shared library
+// (same convention as app.editor.jsx).
+
 import { useNavigate, useNavigation } from "react-router";
 import { useRef, useEffect } from "react";
 import { authenticate } from "../shopify.server";
@@ -18,7 +23,11 @@ export const loader = async ({ request }) => {
       update: { name: s.name, email: s.email, plan: s.plan.displayName },
       create: { myshopifyDomain: session.shop, name: s.name, email: s.email, plan: s.plan.displayName },
     });
-  } catch (_) {}
+  } catch (err) {
+    // Non-fatal — shop metadata sync is best-effort; the editor still
+    // works fine even if this upsert fails (e.g. transient DB hiccup).
+    console.error("Shop metadata sync failed:", err);
+  }
 
   return {};
 };
@@ -50,7 +59,6 @@ const C = {
 
 const IP = { width: 18, height: 18, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round" };
 
-function IconImage(p)   { return <svg {...IP} {...p}><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>; }
 function IconCrop(p)    { return <svg {...IP} {...p}><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg>; }
 function IconSplit(p)   { return <svg {...IP} {...p}><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>; }
 function IconCollage(p) { return <svg {...IP} {...p}><rect x="3" y="3" width="7" height="11" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="18" width="7" height="3" rx="1"/></svg>; }
@@ -208,8 +216,8 @@ export default function Index() {
                 margin: 0, fontSize: 15, lineHeight: 1.65,
                 color: C.textSecondary,
               }}>
-                Crop, resize, split into grids, or build collages,
-                then save the result back to your library.
+                Manage and transform your store media, then save
+                results directly back to your library.
               </p>
             </div>
 
@@ -241,20 +249,16 @@ export default function Index() {
               </button>
             </div>
 
-            {/* Feature pills */}
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center", maxWidth: 560 }}>
-              {FEATURES.map(({ label, Icon }) => (
-                <span key={label} style={{
-                  display: "flex", alignItems: "center", gap: 7,
-                  padding: "7px 16px",
-                  background: C.card,
-                  border: `1px solid ${C.border}`,
-                  borderRadius: 24, fontSize: 13, color: C.accentSecond,
-                }}>
-                  <Icon width={14} height={14} style={{ color: C.textPrimary, flexShrink: 0 }} />
-                  {label}
-                </span>
-              ))}
+            {/* Feature list — passive text badge, not styled as interactive
+                buttons, so it doesn't compete with the "Open Editor" CTA.
+                (These are non-functional; clicking anywhere here does
+                nothing, so they must never look clickable.) */}
+            <div style={{
+              fontSize: 12.5, color: C.muted, maxWidth: 560,
+              lineHeight: 1.6,
+            }}>
+              <span style={{ color: C.textSecondary, fontWeight: 600 }}>Includes:</span>{" "}
+              {FEATURES.map((f) => f.label).join(" • ")}
             </div>
 
           </div>
