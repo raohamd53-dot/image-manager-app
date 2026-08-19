@@ -3,7 +3,7 @@
 // app/routes/app.editor.jsx
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { useLoaderData, useFetcher } from "react-router";
+import { useLoaderData, useFetcher, useNavigate, useRevalidator } from "react-router";
 import { authenticate }  from "../shopify.server";
 import { boundary }      from "@shopify/shopify-app-react-router/server";
 import { join }          from "path";
@@ -135,7 +135,12 @@ export const loader = async ({ request }) => {
   const q     = url.searchParams.get("q")     || "";
 
   try {
-    const queryStr = ["media_type:IMAGE status:READY", q ? `filename:*${q}*` : ""]
+    // Shopify's search syntax only supports a trailing wildcard
+    // (`filename:foo*`) — a leading wildcard (`filename:*foo*`) is not
+    // valid query syntax and previously caused the files query to error
+    // out silently, which made every search return "No images found"
+    // even for filenames that existed.
+    const queryStr = ["media_type:IMAGE status:READY", q ? `filename:${q}*` : ""]
       .filter(Boolean).join(" ");
 
     const res  = await admin.graphql(FILES_QUERY, {
@@ -606,7 +611,11 @@ function CropCanvas({ imageUrl = null, onReady, onReadyChange, lockedRatio, onEr
         if (!imgRef.current || cancelled) return;
         const instance = new Cropper(imgEl, {
           viewMode:     1,
-          autoCropArea: 0.85,
+          // Default the crop box to the full image (100%) rather than an
+          // 85% inset — selecting an image should show the whole picture
+          // by default instead of a pre-zoomed/cropped selection that the
+          // user then has to manually resize outward.
+          autoCropArea: 1,
           responsive:   true,
           background:   false,
           aspectRatio:  isNaN(lockedRatio) ? NaN : lockedRatio,
@@ -727,6 +736,24 @@ function CropToolPanel({
       pointerEvents: disabled ? "none" : "auto",
       transition: "opacity 0.3s cubic-bezier(0.4,0,0.2,1)",
     }}>
+
+      {/* Several presets share the same aspect ratio (e.g. Shopify Product
+          2048×2048 and Instagram Square 1080×1080 are both 1:1), so the
+          crop box looks identical even though the exported pixel size is
+          very different. Surface the actual target pixel size so that
+          isn't confused for "these two presets do the same thing". */}
+      {!locked && customW && customH && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 6,
+          padding: "8px 10px", marginBottom: 12,
+          background: "rgba(90,200,250,0.08)", borderRadius: 6,
+          fontSize: 11, color: C.accentSecond, border: `1px solid rgba(90,200,250,0.25)`,
+          animation: "fadeSlideUp 0.3s ease both",
+        }}>
+          <IcoImage size={12} stroke={C.accentSecond} />
+          Output size: {customW} × {customH}px
+        </div>
+      )}
 
       {locked && lockedDims && (
         <div style={{
@@ -1068,7 +1095,31 @@ function SourcePicker({ mode, loaderData, onConfirm, onWarning }) {
     setLoadingMore(false);
   }, [fetcher.data]);
 
+  // Debounced live search — replaces the old standalone "Search" button.
+  // Skips the very first render so we don't refetch the already-loaded
+  // library on mount.
+  const isFirstSearchRender = useRef(true);
+  useEffect(() => {
+    if (isFirstSearchRender.current) { isFirstSearchRender.current = false; return; }
+    const timer = setTimeout(() => {
+      fetcher.load(`/app/editor?q=${encodeURIComponent(searchQ)}`);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchQ]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const clearSearch = () => setSearchQ("");
+
   const toggleLibraryFile = (f) => {
+    // Single-select flows (crop, split): picking a new image should
+    // automatically replace whatever was selected before, rather than
+    // requiring the user to manually uncheck the previous one first.
+    if (!isMulti) {
+      const alreadySelected = selectedLibIds[0] === f.id;
+      setSelectedLibIds(alreadySelected ? [] : [f.id]);
+      setSelectedLibFiles(alreadySelected ? [] : [f]);
+      return;
+    }
+
     if (selectedLibIds.includes(f.id)) {
       setSelectedLibIds((p)   => p.filter((id) => id !== f.id));
       setSelectedLibFiles((p) => p.filter((lf) => lf.id !== f.id));
@@ -1076,6 +1127,18 @@ function SourcePicker({ mode, loaderData, onConfirm, onWarning }) {
       setSelectedLibIds((p)   => [...p, f.id]);
       setSelectedLibFiles((p) => [...p, f]);
     }
+  };
+
+  // Bulk selection helpers for multi-select flows (Collage) — issue: no
+  // way to quickly select/clear several images at once.
+  const selectAllVisible = () => {
+    const toSelect = libraryFiles.slice(0, maxSelect);
+    setSelectedLibIds(toSelect.map((f) => f.id));
+    setSelectedLibFiles(toSelect);
+  };
+  const deselectAllVisible = () => {
+    setSelectedLibIds([]);
+    setSelectedLibFiles([]);
   };
 
   const handleUpload = (files) => {
@@ -1193,40 +1256,76 @@ function SourcePicker({ mode, loaderData, onConfirm, onWarning }) {
       {tab === "library" && (
         <FadeIn>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <div style={{ display: "flex", gap: 6 }}>
-              <div style={{ flex: 1, position: "relative" }}>
-                <IcoSearch size={13} stroke={C.muted} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
-                <input
-                  value={searchQ}
-                  onChange={(e) => setSearchQ(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && fetcher.load(`/app/editor?q=${encodeURIComponent(searchQ)}`)}
-                  placeholder="Search by filename…"
-                  style={{
-                    width: "100%", padding: "8px 10px 8px 32px", boxSizing: "border-box",
-                    background: C.cardElevated, border: `1px solid ${C.border}`,
-                    borderRadius: 6, fontSize: 12, color: C.textPrimary,
-                    transition: "border-color 0.2s ease, box-shadow 0.2s ease",
-                    outline: "none",
-                  }}
-                  onFocus={(e) => { e.target.style.borderColor = C.accentSecond; e.target.style.boxShadow = `0 0 0 3px rgba(90,200,250,0.12)`; }}
-                  onBlur={(e) => { e.target.style.borderColor = C.border; e.target.style.boxShadow = "none"; }}
-                />
-              </div>
-              <button type="button"
-                onClick={() => fetcher.load(`/app/editor?q=${encodeURIComponent(searchQ)}`)}
+            {/* Search bar — live debounced search, no standalone Search
+                button (Enter still works instantly), with an inline clear
+                (X) action once there's text to clear. */}
+            <div style={{ position: "relative" }}>
+              <IcoSearch size={13} stroke={C.muted} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
+              <input
+                value={searchQ}
+                onChange={(e) => setSearchQ(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && fetcher.load(`/app/editor?q=${encodeURIComponent(searchQ)}`)}
+                placeholder="Search by filename…"
                 style={{
-                  padding: "8px 14px", background: C.cardElevated, border: `1px solid ${C.border}`,
-                  borderRadius: 6, fontSize: 12, cursor: "pointer", color: C.textPrimary,
-                  display: "flex", alignItems: "center", gap: 5,
-                  transition: "border-color 0.2s ease, background 0.2s ease, transform 0.15s ease",
+                  width: "100%", padding: `8px ${searchQ ? 32 : 10}px 8px 32px`, boxSizing: "border-box",
+                  background: C.cardElevated, border: `1px solid ${C.border}`,
+                  borderRadius: 6, fontSize: 12, color: C.textPrimary,
+                  transition: "border-color 0.2s ease, box-shadow 0.2s ease, padding 0.15s ease",
+                  outline: "none",
                 }}
-                onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.accentSecond; e.currentTarget.style.transform = "scale(1.02)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "scale(1)"; }}>
-                {fetcher.state !== "idle" && !loadingMore
-                  ? <><LiquidSpinner size={12} color={C.accent} /><span>Searching…</span></>
-                  : <><IcoSearch size={12} /><span>Search</span></>}
-              </button>
+                onFocus={(e) => { e.target.style.borderColor = C.accentSecond; e.target.style.boxShadow = `0 0 0 3px rgba(90,200,250,0.12)`; }}
+                onBlur={(e) => { e.target.style.borderColor = C.border; e.target.style.boxShadow = "none"; }}
+              />
+              {fetcher.state !== "idle" && !loadingMore && (
+                <div style={{ position: "absolute", right: searchQ ? 30 : 10, top: "50%", transform: "translateY(-50%)" }}>
+                  <LiquidSpinner size={12} color={C.accent} />
+                </div>
+              )}
+              {searchQ && (
+                <button type="button" onClick={clearSearch} aria-label="Clear search"
+                  style={{
+                    position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)",
+                    width: 20, height: 20, borderRadius: "50%", border: "none",
+                    background: C.border, color: C.textSecondary,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    cursor: "pointer", padding: 0,
+                    transition: "background 0.15s ease, transform 0.15s ease",
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = C.danger; e.currentTarget.style.transform = "translateY(-50%) scale(1.1)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = C.border; e.currentTarget.style.transform = "translateY(-50%) scale(1)"; }}>
+                  <IcoX size={10} stroke={C.textPrimary} strokeWidth={2.5} />
+                </button>
+              )}
             </div>
+
+            {isMulti && libraryFiles.length > 0 && (
+              <div style={{ display: "flex", gap: 8 }}>
+                <button type="button" onClick={selectAllVisible}
+                  style={{
+                    padding: "5px 12px", fontSize: 11, fontWeight: 600, cursor: "pointer",
+                    background: C.cardElevated, border: `1px solid ${C.border}`,
+                    borderRadius: 5, color: C.textSecondary,
+                    transition: "border-color 0.2s ease, color 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.accentSecond; e.currentTarget.style.color = C.textPrimary; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textSecondary; }}>
+                  Select All
+                </button>
+                <button type="button" onClick={deselectAllVisible} disabled={selectedLibIds.length === 0}
+                  style={{
+                    padding: "5px 12px", fontSize: 11, fontWeight: 600,
+                    cursor: selectedLibIds.length === 0 ? "default" : "pointer",
+                    background: C.cardElevated, border: `1px solid ${C.border}`,
+                    borderRadius: 5, color: selectedLibIds.length === 0 ? C.muted : C.textSecondary,
+                    opacity: selectedLibIds.length === 0 ? 0.5 : 1,
+                    transition: "border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => { if (selectedLibIds.length) { e.currentTarget.style.borderColor = C.danger; e.currentTarget.style.color = C.textPrimary; } }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = selectedLibIds.length === 0 ? C.muted : C.textSecondary; }}>
+                  Deselect All
+                </button>
+              </div>
+            )}
 
             <LibraryGrid
               files={libraryFiles}
@@ -1320,17 +1419,20 @@ function SourcePicker({ mode, loaderData, onConfirm, onWarning }) {
                     <img src={uploadPreviews[i]} alt=""
                       style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     <button type="button"
+                      aria-label="Remove image"
                       onClick={() => setUploadedFiles((p) => p.filter((_, j) => j !== i))}
                       style={{
-                        position: "absolute", top: 2, right: 2,
-                        background: "rgba(0,0,0,0.75)", color: "#fff", border: "none",
-                        borderRadius: "50%", width: 16, height: 16, fontSize: 9,
+                        position: "absolute", top: 3, right: 3,
+                        background: "rgba(0,0,0,0.85)", color: "#fff",
+                        border: "1.5px solid rgba(255,255,255,0.5)",
+                        borderRadius: "50%", width: 22, height: 22, fontSize: 11,
                         cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-                        transition: "transform 0.15s ease, background 0.15s ease",
+                        boxShadow: "0 2px 6px rgba(0,0,0,0.4)",
+                        transition: "transform 0.15s ease, background 0.15s ease, border-color 0.15s ease",
                       }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = C.danger; e.currentTarget.style.transform = "scale(1.1)"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(0,0,0,0.75)"; e.currentTarget.style.transform = "scale(1)"; }}>
-                      <IcoX size={8} stroke="#fff" strokeWidth={2.5} />
+                      onMouseEnter={(e) => { e.currentTarget.style.background = C.danger; e.currentTarget.style.borderColor = "#fff"; e.currentTarget.style.transform = "scale(1.12)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(0,0,0,0.85)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.5)"; e.currentTarget.style.transform = "scale(1)"; }}>
+                      <IcoX size={12} stroke="#fff" strokeWidth={3} />
                     </button>
                   </div>
                 ))}
@@ -1452,7 +1554,7 @@ function SplitTileModeToggle({ value, onChange }) {
 // EditPanel — Step 2
 // ─────────────────────────────────────────────────────────────────────────────
 
-function EditPanel({ mode, pickedData, gridSize, setGridSize, onSave, saving }) {
+function EditPanel({ mode, pickedData, gridSize, setGridSize, onSave, saving, onBack }) {
   const cropperApiRef    = useRef(null);
   const cellFileInputRef = useRef(null);
 
@@ -1589,6 +1691,23 @@ function EditPanel({ mode, pickedData, gridSize, setGridSize, onSave, saving }) 
     setActiveTool({ type: "ratio", key: "Free" }); setLoadError(false);
   }, []);
 
+  // Reverts every crop applied so far in the Collage panel and restores
+  // the default grid size, so the user can start the layout over without
+  // re-picking their images from scratch.
+  const handleResetCollage = useCallback(() => {
+    setCroppedPreviews((prev) => { Object.values(prev).forEach((u) => URL.revokeObjectURL(u)); return {}; });
+    setSkippedCells({});
+    setExtraCellFiles({});
+    setLockedDims(null);
+    setCropIndex(0);
+    setRecropIndex(null);
+    setActiveTool({ type: "ratio", key: "Free" });
+    setCropperReady(false);
+    cropperApiRef.current = null;
+    setLoadError(false);
+    setGridSize("2x2");
+  }, [setGridSize]);
+
   const handlePickForCell = useCallback((i) => {
     setCellPickTarget(i);
     setTimeout(() => cellFileInputRef.current?.click(), 0);
@@ -1693,6 +1812,24 @@ function EditPanel({ mode, pickedData, gridSize, setGridSize, onSave, saving }) 
 
   return (
     <FadeIn>
+      {/* Back to Images — lets the user exit the active edit panel and
+          return to the gallery without applying/saving anything. */}
+      <div style={{ marginBottom: 14 }}>
+        <button type="button" onClick={onBack}
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 6,
+            padding: "7px 12px", borderRadius: 7,
+            border: `1px solid ${C.border}`, background: C.cardElevated,
+            color: C.textSecondary, fontSize: 12, fontWeight: 600, cursor: "pointer",
+            transition: "border-color 0.2s ease, color 0.2s ease, transform 0.15s ease",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.accentSecond; e.currentTarget.style.color = C.textPrimary; e.currentTarget.style.transform = "translateX(-2px)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textSecondary; e.currentTarget.style.transform = "translateX(0)"; }}>
+          <IcoArrowLeft size={13} />
+          <span>Back to Images</span>
+        </button>
+      </div>
+
       <div style={{ display: "flex", gap: 0, alignItems: "flex-start" }}>
 
         {/* ── Canvas area ── */}
@@ -1766,9 +1903,9 @@ function EditPanel({ mode, pickedData, gridSize, setGridSize, onSave, saving }) 
                       <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8, animation: "fadeSlideUp 0.3s ease both" }}>
                         <ErrorBanner msg="This image couldn't be loaded. You can skip it — the original will be used for this cell." />
                         <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                          {/* <DarkBtn accent onClick={handleSkipCell}>
+                          <DarkBtn accent onClick={handleSkipCell}>
                             <IcoSkip size={13} stroke="#000" /><span>Skip &amp; Use Original</span>
-                          </DarkBtn> */}
+                          </DarkBtn>
                         </div>
                       </div>
                     ) : (
@@ -2014,6 +2151,22 @@ function EditPanel({ mode, pickedData, gridSize, setGridSize, onSave, saving }) 
               <SplitTileModeToggle value={splitTileMode} onChange={setSplitTileMode} />
             )}
 
+            {mode === "collage" && (croppedPreviews && Object.keys(croppedPreviews).length + Object.keys(skippedCells).length > 0) && (
+              <button type="button" onClick={handleResetCollage}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%",
+                  padding: "8px 10px", border: `1px solid ${C.border}`,
+                  borderRadius: 6, fontSize: 12, cursor: "pointer",
+                  background: C.cardElevated, color: C.textSecondary,
+                  transition: "border-color 0.2s ease, background 0.2s ease, transform 0.15s ease",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.danger; e.currentTarget.style.transform = "scale(1.01)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "scale(1)"; }}>
+                <IcoRefresh size={12} />
+                Reset Collage
+              </button>
+            )}
+
             <div style={divider} />
 
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -2143,12 +2296,20 @@ function ErrorBanner({ msg }) {
 export default function EditorPage() {
   const loaderData = useLoaderData();
   const fetcher    = useFetcher();
+  const navigate    = useNavigate();
+  const revalidator = useRevalidator();
 
   const [step,       setStep]     = useState("pick");
   const [mode,       setMode]     = useState("crop");
   const [gridSize,   setGridSize] = useState("2x2");
   const [pickedData, setPicked]   = useState(null);
   const [toast,      setToast]    = useState(null);
+  // Bumped after every successful save so <SourcePicker> is forced to
+  // remount (its selection state is `useState` seeded only once from
+  // `loaderData`). Combined with the revalidation below, this means a
+  // newly-uploaded/saved image shows up in the Store Library tab
+  // immediately — no manual page refresh required.
+  const [pickerKey,  setPickerKey] = useState(0);
 
   const saving = fetcher.state !== "idle";
 
@@ -2158,12 +2319,18 @@ export default function EditorPage() {
       const c    = fetcher.data.count || 1;
       const verb = fetcher.data.saveMode === "replace" ? "replaced" : "saved";
       setToast({ message: `${c} image${c > 1 ? "s" : ""} ${verb} to your Shopify Files library.`, tone: "success" });
-      setTimeout(() => { setStep("pick"); setPicked(null); setToast(null); }, 3000);
+      // Refresh the Files library in the background so the newly saved
+      // image is present once we drop back to the picker.
+      revalidator.revalidate();
+      setTimeout(() => {
+        setStep("pick"); setPicked(null); setToast(null);
+        setPickerKey((k) => k + 1);
+      }, 3000);
     } else {
       setToast({ message: fetcher.data.error || "Something went wrong.", tone: "error" });
       setTimeout(() => setToast(null), 6000);
     }
-  }, [fetcher.data]);
+  }, [fetcher.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePicked     = (data) => { setPicked(data); setStep("edit"); };
   const showWarningToast = useCallback((message) => {
@@ -2302,50 +2469,26 @@ export default function EditorPage() {
           color: C.textPrimary,
         }}>
 
-       {/* Mode tabs — with sliding active indicator, fully responsive */}
-<div style={{
-  display: "flex", gap: 2,
-  background: C.card, borderRadius: 10, padding: 4,
-  marginBottom: 20, border: `1px solid ${C.border}`,
-  width: "100%", maxWidth: "100%",
-  position: "relative",
-  boxSizing: "border-box",
-  overflow: "hidden",
-}}>
-  {/* Sliding background pill */}
-  <div style={{
-    position: "absolute",
-    top: 4, bottom: 4,
-    left: `calc(${MODE_TABS.findIndex((t) => t.key === mode)} * (100% / ${MODE_TABS.length}) + 4px)`,
-    width: `calc(100% / ${MODE_TABS.length} - 8px / ${MODE_TABS.length})`,
-    background: C.accent, borderRadius: 7,
-    transition: "left 0.35s cubic-bezier(0.4,0,0.2,1)",
-    zIndex: 0,
-  }} />
-  {MODE_TABS.map(({ key, Icon, label }) => {
-    const active = mode === key;
-    return (
-      <button key={key} type="button" onClick={() => switchMode(key)} style={{
-        flex: 1,                      // ← each tab shares space equally
-        minWidth: 0,                  // ← allows shrinking below content width
-        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-        padding: "8px 6px", fontSize: 12, cursor: "pointer",
-        fontWeight: active ? 700 : 400,
-        color: active ? "#000" : C.textSecondary,
-        background: "transparent",
-        border: "none", borderRadius: 7,
-        position: "relative", zIndex: 1,
-        transition: "color 0.28s cubic-bezier(0.4,0,0.2,1)",
-        whiteSpace: "nowrap",         // ← prevent label line-wrapping
-        overflow: "hidden",
-        textOverflow: "ellipsis",
-      }}>
-        <Icon size={13} stroke={active ? "#000" : C.textSecondary} style={{ flexShrink: 0, transition: "stroke 0.28s ease" }} />
-        {label}
-      </button>
-    );
-  })}
-</div>
+          {/* ── Global nav header ── */}
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            marginBottom: 18,
+          }}>
+            <button type="button" onClick={() => navigate("/app")}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "7px 12px", borderRadius: 7,
+                border: `1px solid ${C.border}`, background: "transparent",
+                color: C.textSecondary, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                transition: "border-color 0.2s ease, color 0.2s ease, transform 0.15s ease",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.accentSecond; e.currentTarget.style.color = C.textPrimary; e.currentTarget.style.transform = "translateX(-2px)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textSecondary; e.currentTarget.style.transform = "translateX(0)"; }}>
+              <IcoArrowLeft size={13} />
+              <span>Back to Home</span>
+            </button>
+          </div>
+
           {/* Breadcrumb */}
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 20, fontSize: 12 }}>
             <span
@@ -2370,9 +2513,64 @@ export default function EditorPage() {
             </span>
           </div>
 
+          {/* Mode tabs (Crop & Resize / Split Grid / Collage) — these are
+              feature-selection controls for the *upcoming* edit, so they
+              only make sense while the user is still picking a source
+              image. Once editing has actually started, showing every
+              other mode's tab alongside the active one is just noise —
+              hide them and let "Back to Images" (below) handle switching
+              back out of the current mode instead. */}
+          {step === "pick" && (
+            <FadeIn>
+              <div style={{
+                display: "flex", gap: 2,
+                background: C.card, borderRadius: 10, padding: 4,
+                marginBottom: 20, border: `1px solid ${C.border}`,
+                width: "100%", maxWidth: "100%",
+                position: "relative",
+                boxSizing: "border-box",
+                overflow: "hidden",
+              }}>
+                {/* Sliding background pill */}
+                <div style={{
+                  position: "absolute",
+                  top: 4, bottom: 4,
+                  left: `calc(${MODE_TABS.findIndex((t) => t.key === mode)} * (100% / ${MODE_TABS.length}) + 4px)`,
+                  width: `calc(100% / ${MODE_TABS.length} - 8px / ${MODE_TABS.length})`,
+                  background: C.accent, borderRadius: 7,
+                  transition: "left 0.35s cubic-bezier(0.4,0,0.2,1)",
+                  zIndex: 0,
+                }} />
+                {MODE_TABS.map(({ key, Icon, label }) => {
+                  const active = mode === key;
+                  return (
+                    <button key={key} type="button" onClick={() => switchMode(key)} style={{
+                      flex: 1,                      // ← each tab shares space equally
+                      minWidth: 0,                  // ← allows shrinking below content width
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                      padding: "8px 6px", fontSize: 12, cursor: "pointer",
+                      fontWeight: active ? 700 : 400,
+                      color: active ? "#000" : C.textSecondary,
+                      background: "transparent",
+                      border: "none", borderRadius: 7,
+                      position: "relative", zIndex: 1,
+                      transition: "color 0.28s cubic-bezier(0.4,0,0.2,1)",
+                      whiteSpace: "nowrap",         // ← prevent label line-wrapping
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}>
+                      <Icon size={13} stroke={active ? "#000" : C.textSecondary} style={{ flexShrink: 0, transition: "stroke 0.28s ease" }} />
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </FadeIn>
+          )}
+
           {step === "pick" && (
             <FadeIn key={`pick-${mode}`}>
-              <SourcePicker key={mode} mode={mode} loaderData={loaderData} onConfirm={handlePicked} onWarning={showWarningToast} />
+              <SourcePicker key={`${mode}-${pickerKey}`} mode={mode} loaderData={loaderData} onConfirm={handlePicked} onWarning={showWarningToast} />
             </FadeIn>
           )}
 
@@ -2381,6 +2579,7 @@ export default function EditorPage() {
               mode={mode} pickedData={pickedData}
               gridSize={gridSize} setGridSize={setGridSize}
               onSave={handleSave} saving={saving}
+              onBack={() => switchMode(mode)}
             />
           )}
 

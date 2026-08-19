@@ -19,4 +19,10 @@ api_version = "2025-10"
 redirect_urls = [ "https://cheerful-transformation-production-c113.up.railway.app/auth/callback" ]
 
 [build]
-automatically_update_urls_on_dev = true
+# Left off on purpose: with this on, every local `shopify app dev` run
+# silently overwrites application_url/redirect_urls in the Partner
+# Dashboard with that session's temporary Cloudflare tunnel — which then
+# breaks the live/QA app for everyone once the dev session ends and the
+# tunnel dies. Run `shopify app deploy` explicitly when you actually want
+# to push a URL change.
+automatically_update_urls_on_dev = false
