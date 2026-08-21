@@ -1868,7 +1868,7 @@ function EditPanel({ mode, pickedData, gridSize, setGridSize, onSave, saving, on
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <DarkBtn onClick={() => { setSplitSubStep("crop"); setSplitCroppedBlob(null); cropperApiRef.current = null; setCropperReady(false); }}>
-                    <IcoArrowLeft size={13} /><span>Re-crop</span>
+                    <span>Re-crop</span>
                   </DarkBtn>
                   <StepBadge step="2" label="Choose grid size, then save." />
                 </div>
@@ -2485,7 +2485,7 @@ export default function EditorPage() {
               onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.accentSecond; e.currentTarget.style.color = C.textPrimary; e.currentTarget.style.transform = "translateX(-2px)"; }}
               onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textSecondary; e.currentTarget.style.transform = "translateX(0)"; }}>
               <IcoArrowLeft size={13} />
-              <span>Back to Home</span>
+              <span>Home</span>
             </button>
           </div>
 

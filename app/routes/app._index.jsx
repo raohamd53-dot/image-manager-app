@@ -257,7 +257,7 @@ export default function Index() {
               fontSize: 12.5, color: C.muted, maxWidth: 560,
               lineHeight: 1.6,
             }}>
-              <span style={{ color: C.textSecondary, fontWeight: 600 }}>Includes:</span>{" "}
+              {/* <span style={{ color: C.textSecondary, fontWeight: 600 }}>Includes:</span>{" "} */}
               {FEATURES.map((f) => f.label).join(" • ")}
             </div>
 
