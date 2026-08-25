@@ -136,7 +136,7 @@ const FILE_DELETE = `#graphql
 // Images are shown 25 at a time — "Load more" pulls in the next 25 and
 // appends them below the current grid (classic infinite-scroll growth,
 // not a separate "page view").
-const LIBRARY_PAGE_SIZE = 35;
+const LIBRARY_PAGE_SIZE = 25;
 
 export const loader = async ({ request }) => {
   const { admin } = await authenticate.admin(request);
@@ -1117,6 +1117,13 @@ function SourcePicker({ mode, loaderData, onConfirm, onWarning }) {
     setPageHistory([]);
   }, [loaderData]);
 
+  const libraryScrollRef = useRef(null);
+  // Set right before a "Load more" fetch and consumed by the effect below
+  // once the appended files land — keeps auto-scroll scoped to that
+  // action specifically, rather than firing on unrelated list changes
+  // (e.g. a search returning more results than the previous one).
+  const pendingAppendScroll = useRef(false);
+
   useEffect(() => {
     if (!fetcher.data?.files) return;
     if (fetcher.data._append) {
@@ -1137,6 +1144,7 @@ function SourcePicker({ mode, loaderData, onConfirm, onWarning }) {
     // can restore it.
     setPageHistory((h) => [...h, { files: libraryFiles, pageInfo }]);
     setLoadingMore(true);
+    pendingAppendScroll.current = true;
     fetcher.load(`/app/editor?after=${pageInfo.endCursor}&q=${searchQ}&_append=1`);
   };
 
@@ -1163,6 +1171,27 @@ function SourcePicker({ mode, loaderData, onConfirm, onWarning }) {
   }, [searchQ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const clearSearch = () => setSearchQ("");
+
+  // Library grid scroll container — previously loaded images stay put
+  // and newly appended ones land below them inside this one scrollable
+  // area (instead of growing the whole embedded-admin page, which can
+  // get clipped by the surrounding iframe). After a "Load more" append,
+  // nudge the scroll position so the boundary between old and new images
+  // is visible without losing the previous ones above it.
+  useEffect(() => {
+    const el = libraryScrollRef.current;
+    if (el && pendingAppendScroll.current) {
+      pendingAppendScroll.current = false;
+      const prevScrollHeight = el.scrollHeight;
+      // Wait a frame for the new tiles to actually be laid out before
+      // measuring/scrolling. Scroll so the boundary between old and new
+      // images sits near the top of the viewport — old images stay
+      // reachable by scrolling up, new ones are immediately visible.
+      requestAnimationFrame(() => {
+        el.scrollTo({ top: Math.max(prevScrollHeight - 60, 0), behavior: "smooth" });
+      });
+    }
+  }, [libraryFiles]);
 
   const toggleLibraryFile = (f) => {
     // Single-select flows (crop, split): picking a new image should
@@ -1382,14 +1411,17 @@ function SourcePicker({ mode, loaderData, onConfirm, onWarning }) {
               </div>
             )}
 
-            <LibraryGrid
-              files={libraryFiles}
-              selectedIds={selectedLibIds}
-              onToggle={toggleLibraryFile}
-              maxSelect={maxSelect}
-              isMulti={isMulti}
-              loading={fetcher.state !== "idle" && !loadingMore}
-            />
+            <div ref={libraryScrollRef} className="libraryScroll"
+              style={{ maxHeight: 480, overflowY: "auto", paddingRight: 4 }}>
+              <LibraryGrid
+                files={libraryFiles}
+                selectedIds={selectedLibIds}
+                onToggle={toggleLibraryFile}
+                maxSelect={maxSelect}
+                isMulti={isMulti}
+                loading={fetcher.state !== "idle" && !loadingMore}
+              />
+            </div>
 
             {isMulti && selectedLibIds.length > 0 && (
               <div style={{ fontSize: 11, color: C.muted, animation: "fadeSlideUp 0.25s ease both" }}>
@@ -2507,6 +2539,16 @@ export default function EditorPage() {
 
         html, body { background: ${C.bg} !important; }
         s-page, s-section { color-scheme: dark; }
+
+        /* Library grid scroll container — keeps previously loaded images
+           visible alongside newly appended ones. Without a bounded,
+           scrollable area here, a growing grid can end up clipped by the
+           embedded admin iframe instead of pushing the page taller. */
+        .libraryScroll { scrollbar-width: thin; scrollbar-color: ${C.borderStrong} transparent; }
+        .libraryScroll::-webkit-scrollbar { width: 8px; }
+        .libraryScroll::-webkit-scrollbar-track { background: transparent; }
+        .libraryScroll::-webkit-scrollbar-thumb { background: ${C.borderStrong}; border-radius: 4px; }
+        .libraryScroll::-webkit-scrollbar-thumb:hover { background: ${C.muted}; }
 
         /* Cropper.js dark theme */
         .cropper-bg    { background-image: none !important; background-color: #0d0d0f !important; }
