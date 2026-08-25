@@ -133,6 +133,11 @@ const FILE_DELETE = `#graphql
 // Loader
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Images are shown 25 at a time — "Load more" pulls in the next 25 and
+// appends them below the current grid (classic infinite-scroll growth,
+// not a separate "page view").
+const LIBRARY_PAGE_SIZE = 35;
+
 export const loader = async ({ request }) => {
   const { admin } = await authenticate.admin(request);
   const url   = new URL(request.url);
@@ -149,7 +154,7 @@ export const loader = async ({ request }) => {
       .filter(Boolean).join(" ");
 
     const res  = await admin.graphql(FILES_QUERY, {
-      variables: { first: 48, after: after || undefined, query: queryStr },
+      variables: { first: LIBRARY_PAGE_SIZE, after: after || undefined, query: queryStr },
     });
     const json = await res.json();
     const edges = (json.data?.files?.edges ?? []).filter((e) => e.node?.image);
@@ -1394,16 +1399,14 @@ function SourcePicker({ mode, loaderData, onConfirm, onWarning }) {
 
             {(pageInfo.hasNextPage || pageHistory.length > 0) && (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-                {/* Page indicator — makes the pagination flow visible even
-                    before you've clicked anything, and updates as you move
-                    back and forth. Shopify's Files connection is cursor-based
-                    (no total count), so this counts pages loaded-so-far
-                    rather than "page N of M". */}
-                {(pageHistory.length > 0 || pageInfo.hasNextPage) && (
-                  <div style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>
-                    Page {pageHistory.length + 1}
-                  </div>
-                )}
+                {/* Count indicator — images grow downward into the same
+                    grid on "Load more" (not a separate page view), so this
+                    reflects how many are currently shown rather than a
+                    page number. Shopify's Files connection is cursor-based
+                    (no total count available). */}
+                <div style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>
+                  Showing {libraryFiles.length} image{libraryFiles.length === 1 ? "" : "s"}
+                </div>
                 <div style={{ textAlign: "center", display: "flex", justifyContent: "center", gap: 8 }}>
                   {pageHistory.length > 0 && (
                     <button type="button" disabled={loadingMore}
@@ -1418,7 +1421,7 @@ function SourcePicker({ mode, loaderData, onConfirm, onWarning }) {
                       onMouseEnter={(e) => { if (!loadingMore) { e.currentTarget.style.transform = "scale(1.02)"; e.currentTarget.style.borderColor = C.muted; } }}
                       onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.borderColor = C.border; }}>
                       <IcoArrowLeft size={12} />
-                      <span>Back</span>
+                      <span>Undo last load</span>
                     </button>
                   )}
                   {pageInfo.hasNextPage && (
@@ -1432,7 +1435,7 @@ function SourcePicker({ mode, loaderData, onConfirm, onWarning }) {
                       }}
                       onMouseEnter={(e) => { if (!loadingMore) { e.currentTarget.style.transform = "scale(1.02)"; e.currentTarget.style.borderColor = C.muted; } }}
                       onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.borderColor = C.border; }}>
-                      {loadingMore ? <><LiquidSpinner size={12} color={C.accent} /><span>Loading…</span></> : "Load more"}
+                      {loadingMore ? <><LiquidSpinner size={12} color={C.accent} /><span>Loading…</span></> : `Load next ${LIBRARY_PAGE_SIZE}`}
                     </button>
                   )}
                 </div>
