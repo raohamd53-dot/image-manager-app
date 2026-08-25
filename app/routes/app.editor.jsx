@@ -1393,37 +1393,49 @@ function SourcePicker({ mode, loaderData, onConfirm, onWarning }) {
             )}
 
             {(pageInfo.hasNextPage || pageHistory.length > 0) && (
-              <div style={{ textAlign: "center", display: "flex", justifyContent: "center", gap: 8 }}>
-                {pageHistory.length > 0 && (
-                  <button type="button" disabled={loadingMore}
-                    onClick={goBackAPage}
-                    style={{
-                      padding: "7px 18px", fontSize: 12, cursor: loadingMore ? "default" : "pointer",
-                      background: C.cardElevated, border: `1px solid ${C.border}`,
-                      borderRadius: 6, color: C.textSecondary, display: "inline-flex", alignItems: "center", gap: 6,
-                      opacity: loadingMore ? 0.5 : 1,
-                      transition: "transform 0.15s ease, border-color 0.2s ease",
-                    }}
-                    onMouseEnter={(e) => { if (!loadingMore) { e.currentTarget.style.transform = "scale(1.02)"; e.currentTarget.style.borderColor = C.muted; } }}
-                    onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.borderColor = C.border; }}>
-                    <IcoArrowLeft size={12} />
-                    <span>Back</span>
-                  </button>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                {/* Page indicator — makes the pagination flow visible even
+                    before you've clicked anything, and updates as you move
+                    back and forth. Shopify's Files connection is cursor-based
+                    (no total count), so this counts pages loaded-so-far
+                    rather than "page N of M". */}
+                {(pageHistory.length > 0 || pageInfo.hasNextPage) && (
+                  <div style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>
+                    Page {pageHistory.length + 1}
+                  </div>
                 )}
-                {pageInfo.hasNextPage && (
-                  <button type="button" disabled={loadingMore}
-                    onClick={loadMore}
-                    style={{
-                      padding: "7px 18px", fontSize: 12, cursor: loadingMore ? "default" : "pointer",
-                      background: C.cardElevated, border: `1px solid ${C.border}`,
-                      borderRadius: 6, color: C.textPrimary, display: "inline-flex", alignItems: "center", gap: 6,
-                      transition: "transform 0.15s ease, border-color 0.2s ease",
-                    }}
-                    onMouseEnter={(e) => { if (!loadingMore) { e.currentTarget.style.transform = "scale(1.02)"; e.currentTarget.style.borderColor = C.muted; } }}
-                    onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.borderColor = C.border; }}>
-                    {loadingMore ? <><LiquidSpinner size={12} color={C.accent} /><span>Loading…</span></> : "Load more"}
-                  </button>
-                )}
+                <div style={{ textAlign: "center", display: "flex", justifyContent: "center", gap: 8 }}>
+                  {pageHistory.length > 0 && (
+                    <button type="button" disabled={loadingMore}
+                      onClick={goBackAPage}
+                      style={{
+                        padding: "7px 18px", fontSize: 12, cursor: loadingMore ? "default" : "pointer",
+                        background: C.cardElevated, border: `1px solid ${C.border}`,
+                        borderRadius: 6, color: C.textSecondary, display: "inline-flex", alignItems: "center", gap: 6,
+                        opacity: loadingMore ? 0.5 : 1,
+                        transition: "transform 0.15s ease, border-color 0.2s ease",
+                      }}
+                      onMouseEnter={(e) => { if (!loadingMore) { e.currentTarget.style.transform = "scale(1.02)"; e.currentTarget.style.borderColor = C.muted; } }}
+                      onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.borderColor = C.border; }}>
+                      <IcoArrowLeft size={12} />
+                      <span>Back</span>
+                    </button>
+                  )}
+                  {pageInfo.hasNextPage && (
+                    <button type="button" disabled={loadingMore}
+                      onClick={loadMore}
+                      style={{
+                        padding: "7px 18px", fontSize: 12, cursor: loadingMore ? "default" : "pointer",
+                        background: C.cardElevated, border: `1px solid ${C.border}`,
+                        borderRadius: 6, color: C.textPrimary, display: "inline-flex", alignItems: "center", gap: 6,
+                        transition: "transform 0.15s ease, border-color 0.2s ease",
+                      }}
+                      onMouseEnter={(e) => { if (!loadingMore) { e.currentTarget.style.transform = "scale(1.02)"; e.currentTarget.style.borderColor = C.muted; } }}
+                      onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.borderColor = C.border; }}>
+                      {loadingMore ? <><LiquidSpinner size={12} color={C.accent} /><span>Loading…</span></> : "Load more"}
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
