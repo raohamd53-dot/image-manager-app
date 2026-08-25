@@ -37,20 +37,26 @@ export const loader = async ({ request }) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const C = {
-  bg:            "#09090B",
-  bgSecondary:   "#111216",
-  card:          "#181A20",
-  cardElevated:  "#20242D",
-  border:        "rgba(255,255,255,0.06)",
-  accent:        "#00C875",
-  accentSecond:  "#5AC8FA",
-  gradient:      "linear-gradient(135deg, #7C4DFF 0%, #B26DFF 100%)",
-  textPrimary:   "#FFFFFF",
-  textSecondary: "#A9B1BC",
-  muted:         "#7D8590",
-  success:       "#00C875",
-  warning:       "#F5A623",
-  danger:        "#FF5A5F",
+  bg: "#09090B",
+  bgSecondary: "#111111",
+  card: "#181818",
+  cardElevated: "#262626",
+
+  border: "rgba(255,255,255,0.08)",
+  borderStrong: "rgba(255,255,255,0.14)",
+
+  accent: "#A660F1",
+  accentSecond: "#EFDFFF",
+
+  gradient: "linear-gradient(135deg, #A660F1 0%, #EFDFFF 100%)",
+
+  textPrimary: "#FFFFFF",
+  textSecondary: "#D1D1D1",
+  muted: "#9B9B9B",
+
+  success: "#00C875",
+  warning: "#F5A623",
+  danger: "#FF5A5F",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

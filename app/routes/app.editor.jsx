@@ -24,21 +24,26 @@ const UPLOAD_TMP = join(process.cwd(), "public", "uploads", "_tmp");
 // ─────────────────────────────────────────────────────────────────────────────
 
 const C = {
-  bg:            "#ffffffff",
-  bgSecondary:   "#181818ec",
-  card:          "#181a20ff",
-  cardElevated:  "#20242D",
-  border:        "rgba(255, 255, 255, 0.43)",
-  borderStrong:  "rgba(255,255,255,0.12)",
-  accent:        "#00C875",
-  accentSecond:  "#5AC8FA",
-  gradient:      "linear-gradient(135deg, #7C4DFF 0%, #B26DFF 100%)",
-  textPrimary:   "#FFFFFF",
-  textSecondary: "#d1d7dfff",
-  muted:         "#b1b7c0ff",
-  success:       "#00c87570",
-  warning:       "#f5a523f1",
-  danger:        "#ff5a6094",
+  bg: "#09090B",
+  bgSecondary: "#111111",
+  card: "#181818",
+  cardElevated: "#262626",
+
+  border: "rgba(255,255,255,0.08)",
+  borderStrong: "rgba(255,255,255,0.14)",
+
+  accent: "#A660F1",
+  accentSecond: "#EFDFFF",
+
+  gradient: "linear-gradient(135deg, #A660F1 0%, #EFDFFF 100%)",
+
+  textPrimary: "#FFFFFF",
+  textSecondary: "#D1D1D1",
+  muted: "#9B9B9B",
+
+  success: "#00C875",
+  warning: "#F5A623",
+  danger: "#FF5A5F",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
