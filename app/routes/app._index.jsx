@@ -207,7 +207,6 @@ export default function Index() {
 }}>
   <img alt="logo" src="/logo.png" width={286} height={106} />
 </div>
-
             {/* Heading */}
             <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 520 }}>
               <h1 style={{
