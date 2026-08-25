@@ -198,12 +198,7 @@ export default function Index() {
 
            {/* LOGO */}
 <div style={{
-  width: 96, height: 96, borderRadius: 24,
-  background: C.card,
-  border: `1px solid ${C.border}`,
   display: "flex", alignItems: "center", justifyContent: "center",
-  color: C.accent,
-  boxShadow: `0 0 40px rgba(0,200,117,0.12)`,
 }}>
   <img alt="logo" src="/logo.png" width={286} height={106} />
 </div>
