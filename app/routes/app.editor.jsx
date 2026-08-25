@@ -1481,7 +1481,7 @@ function SourcePicker({ mode, loaderData, onConfirm, onWarning }) {
                     }}
                     onMouseEnter={(e) => { if (!loadingMore) { e.currentTarget.style.transform = "scale(1.02)"; e.currentTarget.style.borderColor = C.muted; } }}
                     onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.borderColor = C.border; }}>
-                    {loadingMore ? <><LiquidSpinner size={12} color={C.accent} /><span>Loading…</span></> : `Load next ${LIBRARY_PAGE_SIZE}`}
+                    {loadingMore ? <><LiquidSpinner size={12} color={C.accent} /><span>Loading…</span></> : `Load more`}
                   </button>
                 )}
               </div>
