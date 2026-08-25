@@ -205,7 +205,7 @@ export default function Index() {
   color: C.accent,
   boxShadow: `0 0 40px rgba(0,200,117,0.12)`,
 }}>
-  <img alt="logo" src="/logo.png" width={116} height={106} />
+  <img alt="logo" src="/logo.png" width={196} height={106} />
 </div>
 
             {/* Heading */}
