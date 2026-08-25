@@ -210,7 +210,7 @@ export default function Index() {
               }}>
                 Welcome to <span style={{
                 color: C.accent,
-              }}>Image Manager</span>
+              }}>PicCut</span>
               </h1>
               <p style={{
                 margin: 0, fontSize: 15, lineHeight: 1.65,
