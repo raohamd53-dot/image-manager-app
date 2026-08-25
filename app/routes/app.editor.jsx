@@ -140,9 +140,15 @@ const LIBRARY_PAGE_SIZE = 25;
 
 export const loader = async ({ request }) => {
   const { admin } = await authenticate.admin(request);
-  const url   = new URL(request.url);
-  const after = url.searchParams.get("after") || null;
-  const q     = url.searchParams.get("q")     || "";
+  const url    = new URL(request.url);
+  const after  = url.searchParams.get("after")   || null;
+  const q      = url.searchParams.get("q")       || "";
+  // Echoed straight back in the response so the client can tell an
+  // "append the next page" fetch apart from a fresh/replace fetch (a new
+  // search, or the initial load). Without this the client had no way to
+  // distinguish the two, so every "Load more" ended up replacing the
+  // list instead of appending to it.
+  const append = url.searchParams.get("_append") === "1";
 
   try {
     // Shopify's search syntax only supports a trailing wildcard
@@ -163,6 +169,7 @@ export const loader = async ({ request }) => {
       files:    edges.map((e) => ({ cursor: e.cursor, ...e.node })),
       pageInfo: json.data?.files?.pageInfo ?? { hasNextPage: false, endCursor: null },
       q,
+      _append:  append,
       error:    null,
     };
   } catch (err) {
