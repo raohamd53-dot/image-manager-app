@@ -1409,7 +1409,7 @@ function SourcePicker({ mode, loaderData, onConfirm, onWarning }) {
                 {isDragOver ? "Drop to upload" : "Click or drag to upload"}
               </div>
               <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
-                JPEG · PNG · WebP · up to {MAX_UPLOAD_LABEL} each{isMulti ? ` · up to ${maxSelect} files` : ""}
+                JPG · PNG · WebP · JPEG up to {MAX_UPLOAD_LABEL} each{isMulti ? ` · up to ${maxSelect} files` : ""}
               </div>
             </div>
 

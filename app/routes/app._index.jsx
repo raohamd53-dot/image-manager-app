@@ -205,7 +205,7 @@ export default function Index() {
   color: C.accent,
   boxShadow: `0 0 40px rgba(0,200,117,0.12)`,
 }}>
-  <img alt="logo" src="/logo.jpg" width={96} height={96} />
+  <img alt="logo" src="/logo.png" width={96} height={96} />
 </div>
 
             {/* Heading */}
@@ -251,7 +251,7 @@ export default function Index() {
               >
                 {isNavigating
                   ? <><LiquidSpinner size={16} color={C.muted} /><span>Opening…</span></>
-                  : <><span>Open Editor</span><IconArrow width={16} height={16} stroke="#000" /></>}
+                  : <><span>Open </span><IconArrow width={16} height={16} stroke="#000" /></>}
               </button>
             </div>
 
