@@ -986,7 +986,7 @@ function SplitTilePreview({ croppedBlobUrl, gridSize }) {
 // LibraryGrid
 // ─────────────────────────────────────────────────────────────────────────────
 
-function LibraryGrid({ files, selectedIds, onToggle, maxSelect, loading }) {
+function LibraryGrid({ files, selectedIds, onToggle, maxSelect, isMulti, loading }) {
   if (loading) {
     return (
       <div style={{ padding: "40px 0", textAlign: "center" }}>
@@ -1010,7 +1010,11 @@ function LibraryGrid({ files, selectedIds, onToggle, maxSelect, loading }) {
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))", gap: 6 }}>
       {files.map((f, idx) => {
         const selected = selectedIds.includes(f.id);
-        const atMax    = !selected && selectedIds.length >= maxSelect;
+        // In single-select flows (crop, split), clicking any other tile
+        // should just swap the selection to it — never "lock" the grid.
+        // Only multi-select flows (collage) cap out and disable further
+        // picks once `maxSelect` is reached.
+        const atMax    = isMulti && !selected && selectedIds.length >= maxSelect;
         return (
           <div key={f.id}
             role="button" tabIndex={atMax ? -1 : 0}
@@ -1071,6 +1075,10 @@ function SourcePicker({ mode, loaderData, onConfirm, onWarning }) {
   const [tab,              setTab]              = useState("library");
   const [libraryFiles,     setLibraryFiles]     = useState(loaderData?.files ?? []);
   const [pageInfo,         setPageInfo]         = useState(loaderData?.pageInfo ?? {});
+  // Stack of {files, pageInfo} snapshots taken right before each "Load
+  // more" fetch, so the user can step back to an earlier page instead of
+  // only ever being able to append further pages.
+  const [pageHistory,      setPageHistory]      = useState([]);
   const [searchQ,          setSearchQ]          = useState("");
   const [loadingMore,      setLoadingMore]      = useState(false);
   const [selectedLibIds,   setSelectedLibIds]   = useState([]);
@@ -1089,16 +1097,53 @@ function SourcePicker({ mode, loaderData, onConfirm, onWarning }) {
   const maxSelect = mode === "collage" ? 9 : 1;
   const isMulti   = mode === "collage";
 
+  // Keep the library list in sync with the route loader itself — not just
+  // its own initial state — so that when the parent revalidates after a
+  // save (see EditorPage's handleSave/revalidator), a freshly edited or
+  // newly created image shows up here right away instead of requiring a
+  // manual page refresh. This intentionally resets any "Load more"
+  // pagination back to the first page, since the refreshed data replaces
+  // whatever was previously loaded.
+  const isFirstLoaderSync = useRef(true);
+  useEffect(() => {
+    if (isFirstLoaderSync.current) { isFirstLoaderSync.current = false; return; }
+    setLibraryFiles(loaderData?.files ?? []);
+    setPageInfo(loaderData?.pageInfo ?? {});
+    setPageHistory([]);
+  }, [loaderData]);
+
   useEffect(() => {
     if (!fetcher.data?.files) return;
     if (fetcher.data._append) {
       setLibraryFiles((prev) => [...prev, ...fetcher.data.files]);
     } else {
+      // A fresh (non-append) fetch — a new search, or the initial load —
+      // replaces the list outright, so any pagination history no longer
+      // applies.
       setLibraryFiles(fetcher.data.files);
+      setPageHistory([]);
     }
     setPageInfo(fetcher.data.pageInfo ?? {});
     setLoadingMore(false);
   }, [fetcher.data]);
+
+  const loadMore = () => {
+    // Snapshot the current page before fetching the next one so "Back"
+    // can restore it.
+    setPageHistory((h) => [...h, { files: libraryFiles, pageInfo }]);
+    setLoadingMore(true);
+    fetcher.load(`/app/editor?after=${pageInfo.endCursor}&q=${searchQ}&_append=1`);
+  };
+
+  const goBackAPage = () => {
+    setPageHistory((h) => {
+      if (!h.length) return h;
+      const prev = h[h.length - 1];
+      setLibraryFiles(prev.files);
+      setPageInfo(prev.pageInfo);
+      return h.slice(0, -1);
+    });
+  };
 
   // Debounced live search — replaces the old standalone "Search" button.
   // Skips the very first render so we don't refetch the already-loaded
@@ -1337,6 +1382,7 @@ function SourcePicker({ mode, loaderData, onConfirm, onWarning }) {
               selectedIds={selectedLibIds}
               onToggle={toggleLibraryFile}
               maxSelect={maxSelect}
+              isMulti={isMulti}
               loading={fetcher.state !== "idle" && !loadingMore}
             />
 
@@ -1346,20 +1392,38 @@ function SourcePicker({ mode, loaderData, onConfirm, onWarning }) {
               </div>
             )}
 
-            {pageInfo.hasNextPage && (
-              <div style={{ textAlign: "center" }}>
-                <button type="button" disabled={loadingMore}
-                  onClick={() => { setLoadingMore(true); fetcher.load(`/app/editor?after=${pageInfo.endCursor}&q=${searchQ}&_append=1`); }}
-                  style={{
-                    padding: "7px 18px", fontSize: 12, cursor: loadingMore ? "default" : "pointer",
-                    background: C.cardElevated, border: `1px solid ${C.border}`,
-                    borderRadius: 6, color: C.textPrimary, display: "inline-flex", alignItems: "center", gap: 6,
-                    transition: "transform 0.15s ease, border-color 0.2s ease",
-                  }}
-                  onMouseEnter={(e) => { if (!loadingMore) { e.currentTarget.style.transform = "scale(1.02)"; e.currentTarget.style.borderColor = C.muted; } }}
-                  onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.borderColor = C.border; }}>
-                  {loadingMore ? <><LiquidSpinner size={12} color={C.accent} /><span>Loading…</span></> : "Load more"}
-                </button>
+            {(pageInfo.hasNextPage || pageHistory.length > 0) && (
+              <div style={{ textAlign: "center", display: "flex", justifyContent: "center", gap: 8 }}>
+                {pageHistory.length > 0 && (
+                  <button type="button" disabled={loadingMore}
+                    onClick={goBackAPage}
+                    style={{
+                      padding: "7px 18px", fontSize: 12, cursor: loadingMore ? "default" : "pointer",
+                      background: C.cardElevated, border: `1px solid ${C.border}`,
+                      borderRadius: 6, color: C.textSecondary, display: "inline-flex", alignItems: "center", gap: 6,
+                      opacity: loadingMore ? 0.5 : 1,
+                      transition: "transform 0.15s ease, border-color 0.2s ease",
+                    }}
+                    onMouseEnter={(e) => { if (!loadingMore) { e.currentTarget.style.transform = "scale(1.02)"; e.currentTarget.style.borderColor = C.muted; } }}
+                    onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.borderColor = C.border; }}>
+                    <IcoArrowLeft size={12} />
+                    <span>Back</span>
+                  </button>
+                )}
+                {pageInfo.hasNextPage && (
+                  <button type="button" disabled={loadingMore}
+                    onClick={loadMore}
+                    style={{
+                      padding: "7px 18px", fontSize: 12, cursor: loadingMore ? "default" : "pointer",
+                      background: C.cardElevated, border: `1px solid ${C.border}`,
+                      borderRadius: 6, color: C.textPrimary, display: "inline-flex", alignItems: "center", gap: 6,
+                      transition: "transform 0.15s ease, border-color 0.2s ease",
+                    }}
+                    onMouseEnter={(e) => { if (!loadingMore) { e.currentTarget.style.transform = "scale(1.02)"; e.currentTarget.style.borderColor = C.muted; } }}
+                    onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.borderColor = C.border; }}>
+                    {loadingMore ? <><LiquidSpinner size={12} color={C.accent} /><span>Loading…</span></> : "Load more"}
+                  </button>
+                )}
               </div>
             )}
 
