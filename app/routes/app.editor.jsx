@@ -1021,7 +1021,7 @@ function LibraryGrid({ files, selectedIds, onToggle, maxSelect, isMulti, loading
         // picks once `maxSelect` is reached.
         const atMax    = isMulti && !selected && selectedIds.length >= maxSelect;
         return (
-          <div key={f.id}
+          <div key={f.id} data-idx={idx}
             role="button" tabIndex={atMax ? -1 : 0}
             onClick={() => !atMax && onToggle(f)}
             onKeyDown={(e) => { if (!atMax && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onToggle(f); } }}
@@ -1078,12 +1078,20 @@ function SourcePicker({ mode, loaderData, onConfirm, onWarning }) {
   const inputRef = useRef(null);
 
   const [tab,              setTab]              = useState("library");
-  const [libraryFiles,     setLibraryFiles]     = useState(loaderData?.files ?? []);
+  // Library images are tracked as a list of batches (one per page loaded
+  // from Shopify, LIBRARY_PAGE_SIZE each) rather than one flat array —
+  // that's what lets us show page numbers and jump straight to any
+  // already-loaded batch instead of only stepping back one at a time.
+  const [batches,          setBatches]          = useState([loaderData?.files ?? []]);
+  const libraryFiles = useMemo(() => batches.flat(), [batches]);
+  // Index into `libraryFiles` where each batch starts — batchStarts[i] is
+  // the global tile index the "i+1" page-number button should jump to.
+  const batchStarts = useMemo(() => {
+    let acc = 0;
+    return batches.map((b) => { const start = acc; acc += b.length; return start; });
+  }, [batches]);
+  const [activeBatch,      setActiveBatch]      = useState(0);
   const [pageInfo,         setPageInfo]         = useState(loaderData?.pageInfo ?? {});
-  // Stack of {files, pageInfo} snapshots taken right before each "Load
-  // more" fetch, so the user can step back to an earlier page instead of
-  // only ever being able to append further pages.
-  const [pageHistory,      setPageHistory]      = useState([]);
   const [searchQ,          setSearchQ]          = useState("");
   const [loadingMore,      setLoadingMore]      = useState(false);
   const [selectedLibIds,   setSelectedLibIds]   = useState([]);
@@ -1106,56 +1114,49 @@ function SourcePicker({ mode, loaderData, onConfirm, onWarning }) {
   // its own initial state — so that when the parent revalidates after a
   // save (see EditorPage's handleSave/revalidator), a freshly edited or
   // newly created image shows up here right away instead of requiring a
-  // manual page refresh. This intentionally resets any "Load more"
-  // pagination back to the first page, since the refreshed data replaces
-  // whatever was previously loaded.
+  // manual page refresh. This intentionally resets any loaded pages back
+  // to the first, since the refreshed data replaces whatever was
+  // previously loaded.
   const isFirstLoaderSync = useRef(true);
   useEffect(() => {
     if (isFirstLoaderSync.current) { isFirstLoaderSync.current = false; return; }
-    setLibraryFiles(loaderData?.files ?? []);
+    setBatches([loaderData?.files ?? []]);
     setPageInfo(loaderData?.pageInfo ?? {});
-    setPageHistory([]);
+    setActiveBatch(0);
   }, [loaderData]);
 
   const libraryScrollRef = useRef(null);
-  // Set right before a "Load more" fetch and consumed by the effect below
-  // once the appended files land — keeps auto-scroll scoped to that
-  // action specifically, rather than firing on unrelated list changes
-  // (e.g. a search returning more results than the previous one).
-  const pendingAppendScroll = useRef(false);
+  // Which batch to auto-scroll to once its files land — set right before
+  // a "Load more" fetch, consumed by the effect below.
+  const pendingScrollBatch = useRef(null);
 
   useEffect(() => {
     if (!fetcher.data?.files) return;
     if (fetcher.data._append) {
-      setLibraryFiles((prev) => [...prev, ...fetcher.data.files]);
+      setBatches((prev) => [...prev, fetcher.data.files]);
     } else {
       // A fresh (non-append) fetch — a new search, or the initial load —
-      // replaces the list outright, so any pagination history no longer
-      // applies.
-      setLibraryFiles(fetcher.data.files);
-      setPageHistory([]);
+      // replaces the list outright, so page numbers start over too.
+      setBatches([fetcher.data.files]);
+      setActiveBatch(0);
     }
     setPageInfo(fetcher.data.pageInfo ?? {});
     setLoadingMore(false);
   }, [fetcher.data]);
 
   const loadMore = () => {
-    // Snapshot the current page before fetching the next one so "Back"
-    // can restore it.
-    setPageHistory((h) => [...h, { files: libraryFiles, pageInfo }]);
     setLoadingMore(true);
-    pendingAppendScroll.current = true;
+    pendingScrollBatch.current = batches.length; // index the new batch will land at
     fetcher.load(`/app/editor?after=${pageInfo.endCursor}&q=${searchQ}&_append=1`);
   };
 
-  const goBackAPage = () => {
-    setPageHistory((h) => {
-      if (!h.length) return h;
-      const prev = h[h.length - 1];
-      setLibraryFiles(prev.files);
-      setPageInfo(prev.pageInfo);
-      return h.slice(0, -1);
-    });
+  // Jump straight to any already-loaded page (1st, 2nd, 3rd, …) by
+  // scrolling its first tile into view within the library's scroll
+  // container — no need to step through pages one at a time.
+  const jumpToBatch = (i) => {
+    setActiveBatch(i);
+    const el = libraryScrollRef.current?.querySelector(`[data-idx="${batchStarts[i]}"]`);
+    el?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   // Debounced live search — replaces the old standalone "Search" button.
@@ -1176,22 +1177,26 @@ function SourcePicker({ mode, loaderData, onConfirm, onWarning }) {
   // and newly appended ones land below them inside this one scrollable
   // area (instead of growing the whole embedded-admin page, which can
   // get clipped by the surrounding iframe). After a "Load more" append,
-  // nudge the scroll position so the boundary between old and new images
-  // is visible without losing the previous ones above it.
+  // scroll to where the new batch begins, and keep the page-number
+  // indicator in sync as the user scrolls through the loaded batches.
   useEffect(() => {
-    const el = libraryScrollRef.current;
-    if (el && pendingAppendScroll.current) {
-      pendingAppendScroll.current = false;
-      const prevScrollHeight = el.scrollHeight;
-      // Wait a frame for the new tiles to actually be laid out before
-      // measuring/scrolling. Scroll so the boundary between old and new
-      // images sits near the top of the viewport — old images stay
-      // reachable by scrolling up, new ones are immediately visible.
-      requestAnimationFrame(() => {
-        el.scrollTo({ top: Math.max(prevScrollHeight - 60, 0), behavior: "smooth" });
-      });
+    if (pendingScrollBatch.current === null) return;
+    const target = pendingScrollBatch.current;
+    pendingScrollBatch.current = null;
+    // Wait a frame for the new tiles to actually be laid out first.
+    requestAnimationFrame(() => jumpToBatch(target));
+  }, [libraryFiles]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleLibraryScroll = () => {
+    const container = libraryScrollRef.current;
+    if (!container || batchStarts.length < 2) return;
+    let current = 0;
+    for (let i = 0; i < batchStarts.length; i++) {
+      const el = container.querySelector(`[data-idx="${batchStarts[i]}"]`);
+      if (el && el.offsetTop - container.scrollTop <= 48) current = i;
     }
-  }, [libraryFiles]);
+    setActiveBatch(current);
+  };
 
   const toggleLibraryFile = (f) => {
     // Single-select flows (crop, split): picking a new image should
@@ -1411,7 +1416,7 @@ function SourcePicker({ mode, loaderData, onConfirm, onWarning }) {
               </div>
             )}
 
-            <div ref={libraryScrollRef} className="libraryScroll"
+            <div ref={libraryScrollRef} className="libraryScroll" onScroll={handleLibraryScroll}
               style={{ maxHeight: 480, overflowY: "auto", paddingRight: 4 }}>
               <LibraryGrid
                 files={libraryFiles}
@@ -1429,48 +1434,49 @@ function SourcePicker({ mode, loaderData, onConfirm, onWarning }) {
               </div>
             )}
 
-            {(pageInfo.hasNextPage || pageHistory.length > 0) && (
+            {(pageInfo.hasNextPage || batches.length > 1) && (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-                {/* Count indicator — images grow downward into the same
-                    grid on "Load more" (not a separate page view), so this
-                    reflects how many are currently shown rather than a
-                    page number. Shopify's Files connection is cursor-based
-                    (no total count available). */}
-                <div style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>
-                  Showing {libraryFiles.length} image{libraryFiles.length === 1 ? "" : "s"}
-                </div>
-                <div style={{ textAlign: "center", display: "flex", justifyContent: "center", gap: 8 }}>
-                  {pageHistory.length > 0 && (
-                    <button type="button" disabled={loadingMore}
-                      onClick={goBackAPage}
-                      style={{
-                        padding: "7px 18px", fontSize: 12, cursor: loadingMore ? "default" : "pointer",
-                        background: C.cardElevated, border: `1px solid ${C.border}`,
-                        borderRadius: 6, color: C.textSecondary, display: "inline-flex", alignItems: "center", gap: 6,
-                        opacity: loadingMore ? 0.5 : 1,
-                        transition: "transform 0.15s ease, border-color 0.2s ease",
-                      }}
-                      onMouseEnter={(e) => { if (!loadingMore) { e.currentTarget.style.transform = "scale(1.02)"; e.currentTarget.style.borderColor = C.muted; } }}
-                      onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.borderColor = C.border; }}>
-                      <IcoArrowLeft size={12} />
-                      <span>Undo last load</span>
-                    </button>
-                  )}
-                  {pageInfo.hasNextPage && (
-                    <button type="button" disabled={loadingMore}
-                      onClick={loadMore}
-                      style={{
-                        padding: "7px 18px", fontSize: 12, cursor: loadingMore ? "default" : "pointer",
-                        background: C.cardElevated, border: `1px solid ${C.border}`,
-                        borderRadius: 6, color: C.textPrimary, display: "inline-flex", alignItems: "center", gap: 6,
-                        transition: "transform 0.15s ease, border-color 0.2s ease",
-                      }}
-                      onMouseEnter={(e) => { if (!loadingMore) { e.currentTarget.style.transform = "scale(1.02)"; e.currentTarget.style.borderColor = C.muted; } }}
-                      onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.borderColor = C.border; }}>
-                      {loadingMore ? <><LiquidSpinner size={12} color={C.accent} /><span>Loading…</span></> : `Load next ${LIBRARY_PAGE_SIZE}`}
-                    </button>
-                  )}
-                </div>
+                {/* Page numbers — every batch loaded so far stays in the
+                    grid above (see the scroll container), and clicking a
+                    number jumps straight to that batch instead of only
+                    being able to step one page at a time. */}
+                {batches.length > 1 && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    {batches.map((_, i) => {
+                      const active = i === activeBatch;
+                      return (
+                        <button key={i} type="button" onClick={() => jumpToBatch(i)}
+                          aria-current={active} aria-label={`Jump to page ${i + 1}`}
+                          style={{
+                            width: 26, height: 26, borderRadius: 6,
+                            border: `1px solid ${active ? C.accent : C.border}`,
+                            background: active ? C.accent : C.cardElevated,
+                            color: active ? "#000" : C.textSecondary,
+                            fontSize: 11, fontWeight: 700, cursor: "pointer",
+                            transition: "border-color 0.2s ease, background 0.2s ease, color 0.2s ease, transform 0.15s ease",
+                          }}
+                          onMouseEnter={(e) => { if (!active) { e.currentTarget.style.borderColor = C.accentSecond; e.currentTarget.style.color = C.textPrimary; } }}
+                          onMouseLeave={(e) => { if (!active) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textSecondary; } }}>
+                          {i + 1}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {pageInfo.hasNextPage && (
+                  <button type="button" disabled={loadingMore}
+                    onClick={loadMore}
+                    style={{
+                      padding: "7px 18px", fontSize: 12, cursor: loadingMore ? "default" : "pointer",
+                      background: C.cardElevated, border: `1px solid ${C.border}`,
+                      borderRadius: 6, color: C.textPrimary, display: "inline-flex", alignItems: "center", gap: 6,
+                      transition: "transform 0.15s ease, border-color 0.2s ease",
+                    }}
+                    onMouseEnter={(e) => { if (!loadingMore) { e.currentTarget.style.transform = "scale(1.02)"; e.currentTarget.style.borderColor = C.muted; } }}
+                    onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.borderColor = C.border; }}>
+                    {loadingMore ? <><LiquidSpinner size={12} color={C.accent} /><span>Loading…</span></> : `Load next ${LIBRARY_PAGE_SIZE}`}
+                  </button>
+                )}
               </div>
             )}
 
