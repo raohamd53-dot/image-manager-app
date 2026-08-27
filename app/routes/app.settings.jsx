@@ -21,9 +21,8 @@ import {
   SETTINGS_DEFAULTS as DEFAULTS,
   SETTINGS_BOUNDS as BOUNDS,
   clampSetting as clamp,
-  ensureShop,
-  getShopSettings,
-} from "../lib/shop-settings.server";
+} from "../lib/shop-settings.shared";
+import { ensureShop, getShopSettings } from "../lib/shop-settings.server";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Design tokens — same palette as app._index.jsx / app.editor.jsx

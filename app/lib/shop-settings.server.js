@@ -1,26 +1,17 @@
+/* eslint-env node */
 // app/lib/shop-settings.server.js
 //
-// Single source of truth for the merchant-configurable export settings
-// (JPEG quality, max export dimension, collage gap). Used by:
+// Server-only DB access for the merchant-configurable export settings.
+// Constants/bounds live in shop-settings.shared.js (client-safe) —
+// keep DB-touching code out of that file, or the client bundle build
+// fails with a "server-only module referenced by client" error.
+//
+// Used by:
 //   • app/routes/app.settings.jsx — reads/writes these via the Settings UI
 //   • app/routes/app.editor.jsx   — reads these to apply at export time
 
 import { db } from "../db.server";
-
-export const SETTINGS_DEFAULTS = { jpegQuality: 92, maxExportPx: 4096, collageGapPx: 4 };
-
-export const SETTINGS_BOUNDS = {
-    jpegQuality: { min: 1, max: 100, step: 1 },
-    maxExportPx: { min: 512, max: 8000, step: 1 },
-    collageGapPx: { min: 0, max: 100, step: 1 },
-};
-
-export function clampSetting(value, bounds, fallback) {
-    const { min, max } = bounds;
-    const n = Number(value);
-    if (!Number.isFinite(n)) return fallback;
-    return Math.min(max, Math.max(min, Math.round(n)));
-}
+import { SETTINGS_DEFAULTS } from "./shop-settings.shared";
 
 /**
  * Ensures a Shop row exists for this myshopify domain and returns it.
