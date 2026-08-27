@@ -140,13 +140,22 @@ function SettingCard({ icon, title, description, children }) {
 
 function SliderField({ label, value, onChange, bounds, suffix, hint }) {
   const { min, max, step } = bounds;
+  const numericValue = Number.isFinite(Number(value)) ? Number(value) : min;
+  const percent = ((numericValue - min) / (max - min)) * 100;
+  const trackBackground = `linear-gradient(to right, ${C.accent} 0%, ${C.accent} ${percent}%, ${C.cardElevated} ${percent}%, ${C.cardElevated} 100%)`;
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span style={{ fontSize: 12.5, color: C.textSecondary, fontWeight: 600 }}>{label}</span>
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        <div style={{
+          display: "flex", alignItems: "center", gap: 6,
+          background: C.cardElevated, border: `1px solid ${C.border}`,
+          borderRadius: 7, padding: "4px 4px 4px 10px",
+        }}>
           <input
             type="number"
+            className="settings-number-input"
             min={min}
             max={max}
             step={step}
@@ -154,22 +163,30 @@ function SliderField({ label, value, onChange, bounds, suffix, hint }) {
             onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))}
             onBlur={(e) => onChange(clamp(e.target.value, bounds, value))}
             style={{
-              width: 64, padding: "5px 7px", background: C.cardElevated,
-              border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12.5,
-              color: C.textPrimary, textAlign: "right",
+              width: 46, padding: "3px 0", background: "transparent",
+              border: "none", fontSize: 12.5, color: C.textPrimary,
+              textAlign: "right",
             }}
           />
-          {suffix && <span style={{ fontSize: 12, color: C.muted }}>{suffix}</span>}
+          {suffix && (
+            <span style={{
+              fontSize: 11, color: C.muted, borderLeft: `1px solid ${C.border}`,
+              padding: "3px 8px 3px 8px",
+            }}>
+              {suffix}
+            </span>
+          )}
         </div>
       </div>
       <input
         type="range"
+        className="settings-range-input"
         min={min}
         max={max}
         step={step}
-        value={Number.isFinite(Number(value)) ? value : min}
+        value={numericValue}
         onChange={(e) => onChange(Number(e.target.value))}
-        style={{ width: "100%", accentColor: C.accent, cursor: "pointer" }}
+        style={{ width: "100%", cursor: "pointer", background: trackBackground }}
       />
       {hint && <span style={{ fontSize: 11.5, color: C.muted, lineHeight: 1.5 }}>{hint}</span>}
     </div>
@@ -255,15 +272,55 @@ export default function Settings() {
   return (
     <s-page heading="Settings">
       <style>{`
-        input[type="range"]::-webkit-slider-thumb {
+        .settings-range-input {
           -webkit-appearance: none;
+          appearance: none;
+          height: 4px;
+          border-radius: 999px;
+          outline: none;
+        }
+        .settings-range-input::-webkit-slider-runnable-track {
+          height: 4px;
+          border-radius: 999px;
+          background: transparent;
+        }
+        .settings-range-input::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
           width: 15px; height: 15px; border-radius: 50%;
           background: ${C.accentSecond};
           border: 2px solid ${C.accent};
           cursor: pointer;
+          margin-top: -5.5px;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.4);
         }
-        input[type="number"]::-webkit-inner-spin-button {
-          opacity: 1;
+        .settings-range-input::-moz-range-track {
+          height: 4px;
+          border-radius: 999px;
+          background: ${C.cardElevated};
+        }
+        .settings-range-input::-moz-range-progress {
+          height: 4px;
+          border-radius: 999px;
+          background: ${C.accent};
+        }
+        .settings-range-input::-moz-range-thumb {
+          width: 15px; height: 15px; border-radius: 50%;
+          background: ${C.accentSecond};
+          border: 2px solid ${C.accent};
+          cursor: pointer;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+        }
+        .settings-number-input {
+          -moz-appearance: textfield;
+        }
+        .settings-number-input::-webkit-outer-spin-button,
+        .settings-number-input::-webkit-inner-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+        .settings-number-input:focus {
+          outline: none;
         }
       `}</style>
 
