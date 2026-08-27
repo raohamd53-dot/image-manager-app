@@ -1,3 +1,4 @@
+/* eslint-env node */
 // app/db.server.js
 
 import { PrismaClient } from "@prisma/client";

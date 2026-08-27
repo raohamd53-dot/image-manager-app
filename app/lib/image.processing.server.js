@@ -1,7 +1,8 @@
+/* eslint-env node */
 // app/lib/image.processing.server.js
 
 import sharp from "sharp";
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir } from "fs/promises";
 import { join } from "path";
 
 const UPLOAD_ROOT = join(process.cwd(), "public", "uploads");
@@ -31,6 +32,32 @@ function toPublicUrl(shop, compositionId, filename) {
   return `/uploads/${shop}/compositions/${compositionId}/${filename}`;
 }
 
+/**
+ * If the image's long edge exceeds maxPx, downscales it (aspect-ratio
+ * preserved) so the long edge equals maxPx. No-op if maxPx is falsy or
+ * the image already fits. Used to apply the merchant's configured
+ * "max export dimension" setting to a final buffer before upload.
+ */
+export async function capToMaxDimension(buffer, maxPx, jpegQuality = 90) {
+  if (!maxPx) return buffer;
+
+  const meta = await sharp(buffer).metadata();
+  const { width, height } = meta;
+  if (!width || !height) return buffer;
+
+  if (Math.max(width, height) <= maxPx) return buffer;
+
+  return sharp(buffer)
+    .resize({
+      width: width >= height ? maxPx : undefined,
+      height: height > width ? maxPx : undefined,
+      fit: "inside",
+      withoutEnlargement: true,
+    })
+    .jpeg({ quality: jpegQuality })
+    .toBuffer();
+}
+
 // ─── Split Photo Grid ──────────────────────────────────────────────────────
 
 /**
@@ -43,9 +70,13 @@ function toPublicUrl(shop, compositionId, filename) {
  * @param {string} gridSize - "1x1" | "2x2" | "3x3"
  * @param {string} shop - myshopify domain
  * @param {string} compositionId - id of the Composition record being built
+ * @param {number} [jpegQuality=90] - merchant-configured JPEG export quality
+ * @param {number} [gapPx=18] - merchant-configured gap between tiles in the preview
  * @returns {Promise<{ previewUrl: string, cells: Array<{ position: string, imageUrl: string }> }>}
  */
-export async function splitImageIntoGrid({ sourcePath, gridSize, shop, compositionId }) {
+export async function splitImageIntoGrid({
+  sourcePath, gridSize, shop, compositionId, jpegQuality = 90, gapPx = 18,
+}) {
   const { rows, cols } = parseGridSize(gridSize);
   const dir = await ensureCompositionDir(shop, compositionId);
 
@@ -73,7 +104,7 @@ export async function splitImageIntoGrid({ sourcePath, gridSize, shop, compositi
       // Crop this exact region from the original — does NOT modify the original
       await sharp(sourcePath)
         .extract({ left, top, width: cellWidth, height: cellHeight })
-        .jpeg({ quality: 90 })
+        .jpeg({ quality: jpegQuality })
         .toFile(outputPath);
 
       cells.push({
@@ -91,7 +122,7 @@ export async function splitImageIntoGrid({ sourcePath, gridSize, shop, compositi
 
   // Build one merged preview from the actual generated tiles,
   // with a visible gap between cells so the grid division is clear
-  const GAP = 18; // pixels between each tile in the preview
+  const GAP = gapPx; // pixels between each tile in the preview
 
   const previewFilename = "preview.jpg";
   const previewPath = join(dir, previewFilename);
@@ -121,7 +152,7 @@ export async function splitImageIntoGrid({ sourcePath, gridSize, shop, compositi
     },
   })
     .composite(gappedLayers)
-    .jpeg({ quality: 90 })
+    .jpeg({ quality: jpegQuality })
     .toFile(previewPath);
 
   return {
@@ -143,9 +174,13 @@ export async function splitImageIntoGrid({ sourcePath, gridSize, shop, compositi
  * @param {string} gridSize - "1x1" | "2x2" | "3x3"
  * @param {string} shop
  * @param {string} compositionId
+ * @param {number} [jpegQuality=90] - merchant-configured JPEG export quality
+ * @param {number} [gapPx=20] - merchant-configured gap between tiles in the preview
  * @returns {Promise<{ previewUrl: string, cells: Array<{ position: string, imageUrl: string }> }>}
  */
-export async function composePhotoCollage({ sourcePaths, gridSize, shop, compositionId }) {
+export async function composePhotoCollage({
+  sourcePaths, gridSize, shop, compositionId, jpegQuality = 90, gapPx = 20,
+}) {
   const { rows, cols } = parseGridSize(gridSize);
   const dir = await ensureCompositionDir(shop, compositionId);
 
@@ -186,7 +221,7 @@ export async function composePhotoCollage({ sourcePaths, gridSize, shop, composi
       // ratio honest — any tiny rounding difference is trimmed, not stretched)
       await sharp(sourcePath)
         .resize(cellWidth, cellHeight, { fit: "cover" })
-        .jpeg({ quality: 90 })
+        .jpeg({ quality: jpegQuality })
         .toFile(outputPath);
 
       cells.push({
@@ -202,7 +237,7 @@ export async function composePhotoCollage({ sourcePaths, gridSize, shop, composi
     }
   }
 
-  const GAP = 20;
+  const GAP = gapPx;
   const gappedLayers = compositeLayers.map((layer, index) => {
     const row = Math.floor(index / cols);
     const col = index % cols;
@@ -228,7 +263,7 @@ export async function composePhotoCollage({ sourcePaths, gridSize, shop, composi
     },
   })
     .composite(gappedLayers)
-    .jpeg({ quality: 90 })
+    .jpeg({ quality: jpegQuality })
     .toFile(previewPath);
 
   return {
@@ -246,14 +281,14 @@ export async function composePhotoCollage({ sourcePaths, gridSize, shop, composi
  * needed, just normalize the image into the same file structure so the
  * rest of the app treats it identically to 2x2/3x3 results.
  */
-export async function processSingleImage({ sourcePath, shop, compositionId }) {
+export async function processSingleImage({ sourcePath, shop, compositionId, jpegQuality = 90 }) {
   const dir = await ensureCompositionDir(shop, compositionId);
 
   const filename = "tile-0-0.jpg";
   const outputPath = join(dir, filename);
 
   await sharp(sourcePath)
-    .jpeg({ quality: 90 })
+    .jpeg({ quality: jpegQuality })
     .toFile(outputPath);
 
   const metadata = await sharp(outputPath).metadata();

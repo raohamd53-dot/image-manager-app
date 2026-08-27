@@ -13,7 +13,9 @@ import {
   splitImageIntoGrid,
   composePhotoCollage,
   processSingleImage,
+  capToMaxDimension,
 } from "../lib/image.processing.server";
+import { getShopSettings } from "../lib/shop-settings.server";
 
 import "cropperjs/dist/cropper.css";
 
@@ -263,6 +265,10 @@ export const action = async ({ request }) => {
   const origId   = formData.get("originalFileId") || null;
   const gridSize = formData.get("gridSize") || "2x2";
 
+  // Merchant-configured export defaults (Settings page) — applied here so
+  // every save path (crop, split, collage) honors the same preferences.
+  const settings = await getShopSettings(shop);
+
   await mkdir(UPLOAD_TMP, { recursive: true });
 
   try {
@@ -273,7 +279,7 @@ export const action = async ({ request }) => {
       const filename = formData.get("filename") || "edited.jpg";
       if (!dataUrl) return { success: false, error: "No image data received." };
       const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, "");
-      const buf    = await sharp(Buffer.from(base64, "base64")).jpeg({ quality: 92 }).toBuffer();
+      const buf    = await sharp(Buffer.from(base64, "base64")).jpeg({ quality: settings.jpegQuality }).toBuffer();
       outputBuffers = [{ buffer: buf, filename }];
     }
 
@@ -307,7 +313,7 @@ export const action = async ({ request }) => {
             const height = r === rows - 1 ? fullH - top  : tileH;
             const tileBuf = await sharp(tmpPath)
               .extract({ left, top, width, height })
-              .jpeg({ quality: 92 })
+              .jpeg({ quality: settings.jpegQuality })
               .toBuffer();
             const tileIndex = r * cols + c + 1;
             outputBuffers.push({ buffer: tileBuf, filename: `${baseFilename}-tile-${tileIndex}.jpg` });
@@ -316,8 +322,11 @@ export const action = async ({ request }) => {
         await unlink(tmpPath).catch(() => {});
       } else {
         const result = (rows === 1 && cols === 1)
-          ? await processSingleImage({ sourcePath: tmpPath, shop, compositionId })
-          : await splitImageIntoGrid({ sourcePath: tmpPath, gridSize, shop, compositionId });
+          ? await processSingleImage({ sourcePath: tmpPath, shop, compositionId, jpegQuality: settings.jpegQuality })
+          : await splitImageIntoGrid({
+              sourcePath: tmpPath, gridSize, shop, compositionId,
+              jpegQuality: settings.jpegQuality, gapPx: settings.collageGapPx,
+            });
 
         await unlink(tmpPath).catch(() => {});
 
@@ -358,8 +367,11 @@ export const action = async ({ request }) => {
 
       const compositionId = `editor-${Date.now()}`;
       const result = (rows === 1 && cols === 1)
-        ? await processSingleImage({ sourcePath: tmpPaths[0], shop, compositionId })
-        : await composePhotoCollage({ sourcePaths: tmpPaths, gridSize, shop, compositionId });
+        ? await processSingleImage({ sourcePath: tmpPaths[0], shop, compositionId, jpegQuality: settings.jpegQuality })
+        : await composePhotoCollage({
+            sourcePaths: tmpPaths, gridSize, shop, compositionId,
+            jpegQuality: settings.jpegQuality, gapPx: settings.collageGapPx,
+          });
 
       await Promise.all(tmpPaths.map((p) => unlink(p).catch(() => {})));
 
@@ -374,7 +386,10 @@ export const action = async ({ request }) => {
 
     const savedFiles = [];
     for (const { buffer, filename } of outputBuffers) {
-      const safeBuffer = await ensureUnderMegapixelLimit(buffer);
+      // Merchant's configured max export dimension first (a soft, user-set
+      // preference), then Shopify's hard 25MP upload ceiling as a safety net.
+      const cappedBuffer = await capToMaxDimension(buffer, settings.maxExportPx, settings.jpegQuality);
+      const safeBuffer   = await ensureUnderMegapixelLimit(cappedBuffer);
       savedFiles.push(await uploadBufferToShopifyFiles(admin, safeBuffer, filename));
     }
 

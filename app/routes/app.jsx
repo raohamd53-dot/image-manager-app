@@ -1,3 +1,4 @@
+/* eslint-env node */
 // app/routes/app.jsx
 
 import { Outlet, useLoaderData, useRouteError, useLocation } from "react-router";
