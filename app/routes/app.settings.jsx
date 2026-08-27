@@ -331,10 +331,10 @@ export default function Settings() {
 
               <div>
                 <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: C.textPrimary }}>
-                  Export defaults
+                  Settings
                 </h1>
                 <p style={{ margin: "4px 0 0", fontSize: 13, color: C.muted, lineHeight: 1.5 }}>
-                  These defaults apply across Crop &amp; Resize, Split Grid, and Collage
+                  These settings apply across Crop &amp; Resize, Split Grid, and Collage
                   whenever the editor saves a result back to your store&apos;s files.
                 </p>
               </div>
