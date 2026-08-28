@@ -68,7 +68,6 @@ const IP = { width: 18, height: 18, viewBox: "0 0 24 24", fill: "none", stroke: 
 function IconCrop(p)    { return <svg {...IP} {...p}><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg>; }
 function IconSplit(p)   { return <svg {...IP} {...p}><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>; }
 function IconCollage(p) { return <svg {...IP} {...p}><rect x="3" y="3" width="7" height="11" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="18" width="7" height="3" rx="1"/></svg>; }
-function IconLibrary(p) { return <svg {...IP} {...p}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>; }
 function IconSave(p)    { return <svg {...IP} {...p}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>; }
 function IconArrow(p)   { return <svg {...IP} {...p}><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>; }
 
@@ -87,11 +86,6 @@ const FEATURES = [
     label: "Collage",
     Icon: IconCollage,
     description: "Combine several images into one polished collage with locked frames and re-crop support.",
-  },
-  {
-    label: "Store Library",
-    Icon: IconLibrary,
-    description: "Browse and search every file already in your store instead of re-uploading from scratch.",
   },
   {
     label: "Save to Shopify Files",
