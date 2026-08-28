@@ -9,8 +9,8 @@ export const SETTINGS_DEFAULTS = { jpegQuality: 92, maxExportPx: 4096, collageGa
 
 export const SETTINGS_BOUNDS = {
     jpegQuality: { min: 1, max: 100, step: 1 },
-    maxExportPx: { min: 512, max: 8000, step: 1 },
-    collageGapPx: { min: 0, max: 100, step: 1 },
+    maxExportPx: { min: 512, max: 4000, step: 1 },
+    collageGapPx: { min: 0, max: 25, step: 1 },
 };
 
 export function clampSetting(value, bounds, fallback) {
