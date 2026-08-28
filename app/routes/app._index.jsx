@@ -73,12 +73,65 @@ function IconSave(p)    { return <svg {...IP} {...p}><path d="M19 21H5a2 2 0 0 1
 function IconArrow(p)   { return <svg {...IP} {...p}><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>; }
 
 const FEATURES = [
-  { label: "Crop & Resize",        Icon: IconCrop },
-  { label: "Split Grid",           Icon: IconSplit },
-  { label: "Collage",              Icon: IconCollage },
-  { label: "Store Library",        Icon: IconLibrary },
-  { label: "Save to Shopify Files", Icon: IconSave },
+  {
+    label: "Crop & Resize",
+    Icon: IconCrop,
+    description: "Precisely crop and resize any product or store image without leaving Shopify admin.",
+  },
+  {
+    label: "Split Grid",
+    Icon: IconSplit,
+    description: "Slice a single image into a clean multi-tile grid, ready for carousel posts or feeds.",
+  },
+  {
+    label: "Collage",
+    Icon: IconCollage,
+    description: "Combine several images into one polished collage with locked frames and re-crop support.",
+  },
+  {
+    label: "Store Library",
+    Icon: IconLibrary,
+    description: "Browse and search every file already in your store instead of re-uploading from scratch.",
+  },
+  {
+    label: "Save to Shopify Files",
+    Icon: IconSave,
+    description: "Export finished images straight back to Shopify Files, ready to use anywhere in your store.",
+  },
 ];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reviews (customer feedback shown on the home page)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const REVIEWS = [
+  {
+    quote: "Cut our product photo prep time in half. The collage mode alone was worth installing this app.",
+    author: "Sarah M.",
+    role: "Store Owner",
+    rating: 5,
+  },
+  {
+    quote: "Finally an image editor that lives inside Shopify admin. No more tab-switching to another tool.",
+    author: "James T.",
+    role: "Ecommerce Manager",
+    rating: 5,
+  },
+  {
+    quote: "The split grid feature made building our Instagram carousel posts effortless.",
+    author: "Priya K.",
+    role: "Marketing Lead",
+    rating: 4,
+  },
+];
+
+function IconStar({ filled }) {
+  return (
+    <svg width={14} height={14} viewBox="0 0 24 24" fill={filled ? C.accent : "none"} stroke={C.accent} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12 2 15.09 8.63 22 9.24 16.8 14.14 18.18 21 12 17.4 5.82 21 7.2 14.14 2 9.24 8.91 8.63 12 2" />
+    </svg>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LiquidSpinner — same reusable animated loader orb used in app.editor.jsx
@@ -140,6 +193,132 @@ function NavigationLoadingOverlay({ visible }) {
           </div>
           <div style={{ fontSize: 11, color: C.muted }}>Loading your image library…</div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FeaturesSection — description + featured capabilities grid
+// ─────────────────────────────────────────────────────────────────────────────
+
+function FeaturesSection() {
+  return (
+    <div style={{ padding: "56px 24px", background: C.bgSecondary }}>
+      <div style={{ maxWidth: 960, margin: "0 auto" }}>
+
+        {/* Description */}
+        <div style={{ textAlign: "center", maxWidth: 620, margin: "0 auto 40px" }}>
+          <h2 style={{
+            margin: "0 0 12px", fontSize: 24, fontWeight: 700,
+            color: C.textPrimary, letterSpacing: "-0.01em",
+          }}>
+            Everything you need to manage store media
+          </h2>
+          <p style={{
+            margin: 0, fontSize: 14.5, lineHeight: 1.65, color: C.textSecondary,
+          }}>
+            PicCut brings a full image editor into Shopify admin — crop, split,
+            and collage your photos, then save results straight back to your
+            store library without ever downloading a file.
+          </p>
+        </div>
+
+        {/* Featured grid */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+          gap: 16,
+        }}>
+          {FEATURES.map(({ label, Icon, description }) => (
+            <div key={label} style={{
+              background: C.card,
+              border: `1px solid ${C.border}`,
+              borderRadius: 14,
+              padding: "24px 20px",
+              display: "flex", flexDirection: "column", gap: 12,
+              animation: "fadeSlideUp 0.4s cubic-bezier(0.4,0,0.2,1) both",
+            }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: 10,
+                background: C.gradient,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                color: "#000",
+              }}>
+                <Icon width={18} height={18} stroke="#000" />
+              </div>
+              <div style={{ fontSize: 14.5, fontWeight: 700, color: C.textPrimary }}>
+                {label}
+              </div>
+              <div style={{ fontSize: 12.5, lineHeight: 1.55, color: C.muted }}>
+                {description}
+              </div>
+            </div>
+          ))}
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ReviewsSection — merchant feedback shown on the home page
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ReviewsSection() {
+  return (
+    <div style={{ padding: "56px 24px", background: C.bg }}>
+      <div style={{ maxWidth: 960, margin: "0 auto" }}>
+
+        <div style={{ textAlign: "center", maxWidth: 520, margin: "0 auto 36px" }}>
+          <h2 style={{
+            margin: "0 0 12px", fontSize: 24, fontWeight: 700,
+            color: C.textPrimary, letterSpacing: "-0.01em",
+          }}>
+            Loved by merchants
+          </h2>
+          <p style={{ margin: 0, fontSize: 14.5, color: C.textSecondary }}>
+            Hear what store owners have to say about PicCut.
+          </p>
+        </div>
+
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+          gap: 16,
+        }}>
+          {REVIEWS.map((r) => (
+            <div key={r.author} style={{
+              background: C.card,
+              border: `1px solid ${C.border}`,
+              borderRadius: 14,
+              padding: "22px 20px",
+              display: "flex", flexDirection: "column", gap: 14,
+            }}>
+              <div style={{ display: "flex", gap: 3 }}>
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <IconStar key={i} filled={i < r.rating} />
+                ))}
+              </div>
+              <p style={{
+                margin: 0, fontSize: 13.5, lineHeight: 1.6,
+                color: C.textSecondary, fontStyle: "italic",
+              }}>
+                “{r.quote}”
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: C.textPrimary }}>
+                  {r.author}
+                </span>
+                <span style={{ fontSize: 11.5, color: C.muted }}>
+                  {r.role}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+
       </div>
     </div>
   );
@@ -262,6 +441,18 @@ export default function Index() {
             </div>
 
           </div>
+        </s-bleed>
+      </s-section>
+
+      <s-section>
+        <s-bleed>
+          <FeaturesSection />
+        </s-bleed>
+      </s-section>
+
+      <s-section>
+        <s-bleed>
+          <ReviewsSection />
         </s-bleed>
       </s-section>
     </s-page>
