@@ -1,6 +1,6 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "f5f8a8d73616fd619c8fa5b393c6fe9f"
+client_id = "c3329ddebb17196f1e6948ce1b9b113f"
 application_url = "https://cheerful-transformation-production-c113.up.railway.app"
 embedded = true
 name = "image-upload-manager"
