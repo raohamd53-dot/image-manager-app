@@ -10,7 +10,7 @@
 
 const LAST_UPDATED = "September 7, 2026";
 const APP_NAME = "PicCut";
-const SUPPORT_EMAIL = "support@example.com"; // TODO: replace with your real support email
+const SUPPORT_EMAIL = "Info@mradevelopers.com";
 
 export const meta = () => {
   return [{ title: `Privacy Policy — ${APP_NAME}` }];

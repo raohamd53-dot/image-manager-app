@@ -1,0 +1,20 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "0767b7ea3cd37ca5a835b8682ded2a82"
+name = "Piccut"
+application_url = "https://cheerful-transformation-production-c113.up.railway.app"
+embedded = true
+
+[webhooks]
+api_version = "2026-07"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_files,write_files"
+optional_scopes = [ ]
+use_legacy_install_flow = false
+
+[auth]
+redirect_urls = [
+  "https://cheerful-transformation-production-c113.up.railway.app/auth/callback"
+]
