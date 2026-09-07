@@ -59,7 +59,7 @@ model Shop {
 model ShopSettings {
   id           String   @id @default(cuid())
   jpegQuality  Int      @default(92)
-  maxExportPx  Int      @default(4096)
+  maxExportPx  Int      @default(2096)
   collageGapPx Int      @default(4)
 
   createdAt    DateTime @default(now())

@@ -344,7 +344,7 @@ export default function Settings() {
               <SettingCard
                 icon={<IcoImage size={17} />}
                 title="JPEG export quality"
-                description="Higher quality keeps more detail but produces larger files. 90–95 is a good default for product photography."
+                description="Higher quality keeps more detail but produces larger files. 90–95 is recommended for product photography."
               >
                 <SliderField
                   label="Quality"
@@ -358,7 +358,7 @@ export default function Settings() {
               <SettingCard
                 icon={<IcoExpand size={17} />}
                 title="Max export dimension"
-                description="Caps the longest edge of any exported image, in pixels. Files are automatically kept under Shopify's 25-megapixel upload limit regardless of this setting."
+                description="Caps the longest edge of any exported image, in pixels."
               >
                 <SliderField
                   label="Max long edge"
@@ -372,7 +372,7 @@ export default function Settings() {
               <SettingCard
                 icon={<IcoGrid size={17} />}
                 title="Collage tile gap"
-                description="Space between tiles in Split Grid and Collage preview compositions, in pixels. Set to 0 for tiles that touch edge-to-edge."
+                description="Space between tiles in Split Grid and Collage preview compositions, in pixels."
               >
                 <SliderField
                   label="Gap"
