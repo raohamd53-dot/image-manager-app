@@ -1,14 +1,4 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
-#
-# This config targets the PUBLIC-distribution app record (App Store listing).
-# Your original shopify.app.toml stays untouched and still targets the
-# CUSTOM-distribution app record used for Plus-org install-link testing.
-#
-# Switch between them with:
-#   shopify app config use public   # -> this file (public app)
-#   shopify app config use default  # -> shopify.app.toml (custom app)
-# or target one explicitly per command, e.g.:
-#   shopify app deploy --config public
 
 client_id = "0767b7ea3cd37ca5a835b8682ded2a82"
 name = "PicCut"
@@ -22,12 +12,12 @@ automatically_update_urls_on_dev = false
 api_version = "2026-07"
 
   [[webhooks.subscriptions]]
-  uri = "/webhooks/app/uninstalled"
-  topics = [ "app/uninstalled" ]
+  uri = "/webhooks/gdpr"
+  compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
 
   [[webhooks.subscriptions]]
-  compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
-  uri = "/webhooks/gdpr"
+  uri = "/webhooks/app/uninstalled"
+  topics = [ "app/uninstalled" ]
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes

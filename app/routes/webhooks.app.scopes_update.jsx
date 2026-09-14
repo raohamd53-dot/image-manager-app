@@ -8,7 +8,5 @@ export const action = async ({ request }) => {
   console.log(`Webhook received: ${topic} from ${shop}`);
   console.log("Scopes updated:", payload);
 
-  // In Phase 6 we handle scope changes properly
-  // For now just acknowledge receipt
   return new Response(null, { status: 200 });
 };
