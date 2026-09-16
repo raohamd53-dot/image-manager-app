@@ -2,7 +2,7 @@
 
 client_id = "0767b7ea3cd37ca5a835b8682ded2a82"
 name = "PicCut"
-application_url = "https://cheerful-transformation-production-c113.up.railway.app"
+application_url = "https://image-manager-app-production-fc15.up.railway.app"
 embedded = true
 
 [build]
@@ -27,5 +27,5 @@ use_legacy_install_flow = false
 
 [auth]
 redirect_urls = [
-  "https://cheerful-transformation-production-c113.up.railway.app/auth/callback"
+  "https://image-manager-app-production-fc15.up.railway.app/auth/callback"
 ]
